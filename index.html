@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Uma prova de conceito de AMM BTC/USD usando a experiência bearer do Cashu." />
+    <title>Cashu AMM — BTC / USD test pool</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="wordmark" href="#top" aria-label="Cashu AMM início">
+        <span class="wordmark-mark">C</span>
+        <span>Cashu AMM <small>proof of concept</small></span>
+      </a>
+      <div class="header-actions">
+        <span class="mode-pill"><i></i> mock local</span>
+        <button class="text-button" id="reset-demo" type="button">Reiniciar demo</button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">BTC · USD / CONSTANT PRODUCT</p>
+          <h1>Liquidez que cabe<br />num <em>bearer token.</em></h1>
+          <p class="lede">
+            Uma mesa experimental para depositar ecash, receber participação na pool
+            e trocar BTC por USD sem order book.
+          </p>
+          <div class="hero-notice">
+            <strong>Demo local.</strong> Tokens e reservas são simulados neste navegador.
+            Os mints testnet são consultados apenas para verificar disponibilidade.
+          </div>
+        </div>
+
+        <div class="pool-orbit" aria-label="Visualização das reservas BTC e USD">
+          <div class="orbit-line orbit-a"></div>
+          <div class="orbit-line orbit-b"></div>
+          <div class="asset-node asset-btc">
+            <span>₿</span>
+            <small>BTC reserve</small>
+          </div>
+          <div class="asset-node asset-usd">
+            <span>$</span>
+            <small>USD reserve</small>
+          </div>
+          <div class="pool-core">
+            <small>SPOT</small>
+            <strong id="hero-price">—</strong>
+            <span>USD / BTC</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="ticker" aria-label="Estado da pool">
+        <div><span>Reserva BTC</span><strong id="pool-sat">—</strong></div>
+        <div><span>Reserva USD</span><strong id="pool-usd">—</strong></div>
+        <div><span>Fee</span><strong>1.00%</strong></div>
+        <div><span>Invariant k</span><strong id="pool-k">—</strong></div>
+        <div><span>LP supply</span><strong id="pool-shares">—</strong></div>
+      </section>
+
+      <section class="workspace">
+        <aside class="wallet-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">TEST WALLET</p>
+              <h2>Seu bolso</h2>
+            </div>
+            <span class="wallet-dot"></span>
+          </div>
+
+          <div class="balance-stack">
+            <article class="balance-card warm">
+              <span>Bitcoin</span>
+              <strong id="wallet-sat">0 sat</strong>
+              <button type="button" data-faucet="sat">Pegar 250.000 test sat</button>
+            </article>
+            <article class="balance-card cool">
+              <span>Dólar</span>
+              <strong id="wallet-usd">$0.00</strong>
+              <button type="button" data-faucet="usd">Pegar $250 test USD</button>
+            </article>
+            <article class="balance-card ink">
+              <span>Participação</span>
+              <strong id="wallet-lp">0 LP</strong>
+              <small id="wallet-share-percent">0% da pool</small>
+            </article>
+          </div>
+
+          <div class="mint-status">
+            <div class="mint-title">
+              <span>Mints usados pelo Granola</span>
+              <button type="button" id="refresh-mints" class="icon-button" aria-label="Verificar mints novamente">↻</button>
+            </div>
+            <div class="mint-row" data-mint="https://testnut.cashu.space">
+              <i></i><span>Testnut</span><small>verificando…</small>
+            </div>
+            <div class="mint-row" data-mint="https://nofee.testnut.cashu.space">
+              <i></i><span>Testnut nofee</span><small>verificando…</small>
+            </div>
+          </div>
+        </aside>
+
+        <section class="terminal-card">
+          <div class="tabs" role="tablist" aria-label="Operações da pool">
+            <button id="liquidity-tab" role="tab" aria-selected="true" aria-controls="liquidity-panel" type="button">
+              <span>01</span> Liquidez
+            </button>
+            <button id="trade-tab" role="tab" aria-selected="false" aria-controls="trade-panel" type="button">
+              <span>02</span> Trade
+            </button>
+          </div>
+
+          <div class="tab-panel active" id="liquidity-panel" role="tabpanel" aria-labelledby="liquidity-tab">
+            <div class="panel-intro">
+              <div>
+                <p class="eyebrow">PROVIDE LIQUIDITY</p>
+                <h2>Deposite o par.<br />Leve o recibo.</h2>
+              </div>
+              <p>O depósito segue a proporção atual da pool. Shares e resgates sempre arredondam a favor da pool.</p>
+            </div>
+
+            <form id="liquidity-form" class="operation-form">
+              <label class="amount-field">
+                <span>Você deposita</span>
+                <div><input id="liquidity-sat" inputmode="numeric" autocomplete="off" value="10000" /><b>SAT</b></div>
+                <small id="liquidity-sat-balance">Disponível: 0 sat</small>
+              </label>
+              <div class="pair-link" aria-hidden="true">+</div>
+              <label class="amount-field">
+                <span>Na proporção</span>
+                <div><input id="liquidity-usd" inputmode="decimal" autocomplete="off" value="5.00" /><b>USD</b></div>
+                <small id="liquidity-usd-balance">Disponível: $0.00</small>
+              </label>
+
+              <div class="quote-sheet">
+                <div><span>Você recebe</span><strong id="liquidity-preview">— LP</strong></div>
+                <div><span>Participação estimada</span><strong id="liquidity-share-preview">—</strong></div>
+                <div><span>Modelo</span><strong>Proporcional</strong></div>
+              </div>
+
+              <button class="primary-action" type="submit">
+                <span>Depositar & emitir LP token</span><b>↗</b>
+              </button>
+              <p class="form-message" id="liquidity-message" role="status"></p>
+            </form>
+
+            <div class="token-receipt" id="token-receipt" hidden>
+              <div>
+                <p class="eyebrow">MOCK BEARER RECEIPT</p>
+                <strong>Seu LP token foi emitido</strong>
+              </div>
+              <code id="lp-token-value"></code>
+              <button type="button" id="copy-lp-token">Copiar</button>
+            </div>
+
+            <details class="redeem-drawer">
+              <summary>Resgatar LP shares <span>pro rata ↘</span></summary>
+              <form id="redeem-form">
+                <label class="amount-field">
+                  <span>Shares para resgatar</span>
+                  <div><input id="redeem-shares" inputmode="numeric" autocomplete="off" placeholder="0" /><b>LP</b></div>
+                </label>
+                <div class="redeem-preview" id="redeem-preview">Você receberá —</div>
+                <button class="secondary-action" type="submit">Resgatar participação</button>
+                <p class="form-message" id="redeem-message" role="status"></p>
+              </form>
+            </details>
+          </div>
+
+          <div class="tab-panel" id="trade-panel" role="tabpanel" aria-labelledby="trade-tab" hidden>
+            <div class="panel-intro">
+              <div>
+                <p class="eyebrow">SWAP EXACT-IN</p>
+                <h2>Troque contra<br />a curva.</h2>
+              </div>
+              <p>O preço nasce das reservas. A fee de 1% fica na pool e o output é arredondado para baixo.</p>
+            </div>
+
+            <form id="trade-form" class="operation-form trade-form">
+              <div class="direction-switch" role="group" aria-label="Direção do trade">
+                <button class="active" type="button" data-direction="sat-usd">BTC → USD</button>
+                <button type="button" data-direction="usd-sat">USD → BTC</button>
+              </div>
+
+              <label class="amount-field trade-amount">
+                <span>Você envia</span>
+                <div><input id="trade-input" inputmode="decimal" autocomplete="off" value="10000" /><b id="trade-input-unit">SAT</b></div>
+                <small id="trade-balance">Disponível: 0 sat</small>
+              </label>
+
+              <div class="trade-arrow" aria-hidden="true">↓</div>
+
+              <div class="output-field">
+                <span>Você recebe</span>
+                <div><strong id="trade-output">—</strong><b id="trade-output-unit">USD</b></div>
+              </div>
+
+              <div class="quote-sheet">
+                <div><span>Fee da pool</span><strong id="trade-fee">—</strong></div>
+                <div><span>Price impact</span><strong id="trade-impact">—</strong></div>
+                <div><span>Próximo spot</span><strong id="trade-next-price">—</strong></div>
+              </div>
+
+              <button class="primary-action dark" type="submit">
+                <span>Executar swap</span><b>↗</b>
+              </button>
+              <p class="form-message" id="trade-message" role="status"></p>
+            </form>
+          </div>
+        </section>
+      </section>
+
+      <section class="ledger-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">LOCAL EVENT LOG</p>
+            <h2>O que aconteceu</h2>
+          </div>
+          <p>Um ledger de demonstração, armazenado somente neste navegador.</p>
+        </div>
+        <div class="ledger" id="activity-ledger"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Cashu AMM / experimental desk</span>
+      <span>testnet only · no real funds</span>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
