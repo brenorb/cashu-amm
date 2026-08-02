@@ -203,6 +203,10 @@ Os testes matemáticos devem cobrir:
 - depósito proporcional;
 - resgate proporcional;
 - rejeição de shares acima do supply.
+- rejeição de ativos, direções, inputs e receipts inválidos;
+- atomicidade das operações que falham;
+- mudança do preço após swap;
+- round-trip do estado serializado.
 
 O teste manual deve demonstrar:
 
@@ -212,7 +216,7 @@ O teste manual deve demonstrar:
 4. executar USD → BTC;
 5. observar reservas, preço, fee e invariant mudarem;
 6. resgatar parte das shares;
-7. reiniciar a demo e confirmar que o estado local é apagado.
+7. reiniciar a demo, recarregar a página e confirmar que o estado local foi apagado.
 
 ## 11. Testnet e próxima integração
 
@@ -225,4 +229,3 @@ Essa consulta é informativa e não movimenta fundos. A próxima etapa, caso a
 PoC valide a experiência, é substituir o faucet local por uma carteira Cashu
 de testnet e definir um serviço de pool que receba proofs, atualize reservas e
 emita outputs. Essa etapa não faz parte desta especificação.
-

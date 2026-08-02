@@ -96,6 +96,12 @@ function appendActivity(state, type, description, amount, meta) {
   });
 }
 
+function assertInvariantDidNotDecrease(before, after) {
+  const beforeK = before.pool.sat * before.pool.usd;
+  const afterK = after.pool.sat * after.pool.usd;
+  if (afterK < beforeK) throw new Error("estado inválido: invariant diminuiu");
+}
+
 export function applyFaucet(state, asset, meta = {}) {
   assertState(state);
   if (!(asset in FAUCET_AMOUNTS)) throw new Error("ativo de faucet inválido");
@@ -213,6 +219,7 @@ export function executeSwap(state, direction, amountIn, meta = {}) {
     `${amountIn} ${walletAsset.toUpperCase()} → ${quote.amountOut} ${outputAsset.toUpperCase()}`,
     meta
   );
+  assertInvariantDidNotDecrease(state, next);
   assertState(next);
   return {
     state: next,
@@ -293,4 +300,3 @@ export function deserializeState(serialized) {
     throw new Error("estado inválido");
   }
 }
-

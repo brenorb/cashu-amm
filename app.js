@@ -349,8 +349,8 @@ wireRedemption();
 wireTrade();
 byId("refresh-mints").addEventListener("click", checkMints);
 byId("reset-demo").addEventListener("click", () => {
+  localStorage.removeItem(STORAGE_KEY);
   state = createInitialState();
-  saveState();
   setMessage("liquidity-message", "Demo reiniciada.", "success");
   setMessage("trade-message", "");
   render();

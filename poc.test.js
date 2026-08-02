@@ -113,3 +113,21 @@ test("serialization round-trips BigInt state and rejects invalid state", () => {
   assert.deepEqual(restored, state);
   assert.throws(() => deserializeState(JSON.stringify({ wallet: { sat: "-1" } })), /estado inválido/i);
 });
+
+test("invalid operations fail without changing the input state", () => {
+  const state = seed();
+  assert.throws(() => applyFaucet(state, "eur"), /faucet inválido/i);
+  assert.throws(() => executeSwap(state, "sat-usd", 0n), /maior que zero/i);
+  assert.throws(() => executeSwap(state, "not-a-direction", 1n), /direção de swap inválida/i);
+  assert.throws(() => redeemLiquidity(state, 1n), /shares acima do saldo/i);
+  assert.throws(() => decodeMockLpToken("cashu-amm-mock:not-valid"), /receipt mock inválido/i);
+  assert.deepEqual(state, seed());
+});
+
+test("the pool price changes after a valid swap", () => {
+  let state = applyFaucet(seed(), "sat", { id: "faucet-1", time: "2026-01-01T00:00:00.000Z" });
+  const before = state.pool.usd * 1_000_000n / state.pool.sat;
+  state = executeSwap(state, "sat-usd", 100_000n, { id: "swap-1", time: "2026-01-01T00:00:01.000Z" }).state;
+  const after = state.pool.usd * 1_000_000n / state.pool.sat;
+  assert.ok(after < before);
+});
