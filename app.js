@@ -14,6 +14,7 @@ import {
   redeemLiquidity,
   serializeState
 } from "./poc.js";
+import { inspectMint } from "./mints.js";
 
 const STORAGE_KEY = "cashu-amm-poc-v1";
 
@@ -322,21 +323,9 @@ async function checkMints() {
   await Promise.all(rows.map(async (row) => {
     row.classList.remove("online", "offline");
     row.querySelector("small").textContent = "verificando…";
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${row.dataset.mint}/v1/info`, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!response.ok) throw new Error("not available");
-      const info = await response.json();
-      const methods = info?.nuts?.["4"]?.methods || [];
-      const units = new Set(methods.map((method) => method.unit));
-      row.classList.add("online");
-      row.querySelector("small").textContent = units.has("sat") && units.has("usd") ? "sat + usd online" : "online";
-    } catch {
-      row.classList.add("offline");
-      row.querySelector("small").textContent = "indisponível / CORS";
-    }
+    const result = await inspectMint(row.dataset.mint);
+    row.classList.add(result.status);
+    row.querySelector("small").textContent = result.label;
   }));
 }
 

@@ -112,6 +112,18 @@ test("serialization round-trips BigInt state and rejects invalid state", () => {
   const restored = deserializeState(serializeState(state));
   assert.deepEqual(restored, state);
   assert.throws(() => deserializeState(JSON.stringify({ wallet: { sat: "-1" } })), /estado inválido/i);
+  assert.throws(() => deserializeState(JSON.stringify({
+    pool: { sat: "1000000", usd: "50000", shares: "223606" },
+    wallet: { sat: "0", usd: "0", lp: "0" },
+    activities: [],
+    lastLpToken: "not-a-receipt"
+  })), /estado inválido/i);
+  assert.throws(() => deserializeState(JSON.stringify({
+    pool: { sat: "1000000", usd: "50000", shares: "223606" },
+    wallet: { sat: "0", usd: "0", lp: "0" },
+    activities: [],
+    lastLpToken: "cashu-amm-mock:bad"
+  })), /estado inválido/i);
 });
 
 test("invalid operations fail without changing the input state", () => {

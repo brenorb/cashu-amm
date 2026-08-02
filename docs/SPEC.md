@@ -229,3 +229,14 @@ Essa consulta é informativa e não movimenta fundos. A próxima etapa, caso a
 PoC valide a experiência, é substituir o faucet local por uma carteira Cashu
 de testnet e definir um serviço de pool que receba proofs, atualize reservas e
 emita outputs. Essa etapa não faz parte desta especificação.
+
+## 12. Mapa da implementação
+
+O núcleo matemático está em `amm.js`; as transições de estado, ledger, faucet,
+receipt mock e serialização estão em `poc.js`. A página em `index.html` e
+`app.js` expõe as duas abas e persiste a simulação no `localStorage`. A consulta
+read-only dos mints está isolada em `mints.js`.
+
+`npm test` executa os testes matemáticos (`amm.test.js`), de transições e
+invariantes (`poc.test.js`), de disponibilidade dos mints (`mints.test.js`) e
+do contrato mínimo da interface (`ui-contract.test.js`).

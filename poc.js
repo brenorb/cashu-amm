@@ -62,6 +62,7 @@ export function assertState(state) {
   }
   if (state.wallet.lp > state.pool.shares) throw new Error("estado inválido: LP acima do supply");
   if (typeof state.lastLpToken !== "string") throw new Error("estado inválido: receipt");
+  if (state.lastLpToken) decodeMockLpToken(state.lastLpToken);
   for (const activity of state.activities) {
     if (!activity || typeof activity !== "object" || typeof activity.type !== "string") {
       throw new Error("estado inválido: ledger");
@@ -155,6 +156,7 @@ export function decodeMockLpToken(token) {
       payload.kind !== "cashu-amm-lp" ||
       payload.pool !== "btc-usd-poc" ||
       typeof payload.amount !== "string" ||
+      !/^[1-9]\d*$/.test(payload.amount) ||
       typeof payload.nonce !== "string"
     ) throw new Error("receipt mock inválido");
     return payload;
