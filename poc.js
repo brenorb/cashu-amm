@@ -8,6 +8,7 @@ import {
 
 export const INITIAL_RESERVE_SAT = 1_000_000n;
 export const INITIAL_RESERVE_USD = 50_000n;
+export const STATE_VERSION = 1;
 export const FAUCET_AMOUNTS = Object.freeze({
   sat: 250_000n,
   usd: 25_000n
@@ -105,7 +106,9 @@ function assertInvariantDidNotDecrease(before, after) {
 
 export function applyFaucet(state, asset, meta = {}) {
   assertState(state);
-  if (!(asset in FAUCET_AMOUNTS)) throw new Error("ativo de faucet inválido");
+  if (typeof asset !== "string" || !Object.hasOwn(FAUCET_AMOUNTS, asset)) {
+    throw new Error("ativo de faucet inválido");
+  }
 
   const next = cloneState(state);
   const amount = FAUCET_AMOUNTS[asset];
@@ -135,6 +138,7 @@ function decodeBase64(value) {
 
 export function createMockLpToken(amount, nonce = randomId("lp")) {
   if (!isBigInt(amount) || amount <= 0n) throw new Error("amount LP inválido");
+  if (typeof nonce !== "string" || nonce.length === 0) throw new Error("nonce LP inválido");
   const payload = {
     mock: true,
     kind: "cashu-amm-lp",
@@ -157,7 +161,8 @@ export function decodeMockLpToken(token) {
       payload.pool !== "btc-usd-poc" ||
       typeof payload.amount !== "string" ||
       !/^[1-9]\d*$/.test(payload.amount) ||
-      typeof payload.nonce !== "string"
+      typeof payload.nonce !== "string" ||
+      payload.nonce.length === 0
     ) throw new Error("receipt mock inválido");
     return payload;
   } catch {
@@ -264,6 +269,7 @@ export function redeemLiquidity(state, shares, meta = {}) {
 export function serializeState(state) {
   assertState(state);
   return JSON.stringify({
+    version: STATE_VERSION,
     pool: {
       sat: state.pool.sat.toString(),
       usd: state.pool.usd.toString(),
@@ -282,6 +288,7 @@ export function serializeState(state) {
 export function deserializeState(serialized) {
   try {
     const raw = JSON.parse(serialized);
+    if (raw.version !== STATE_VERSION) throw new Error("versão de estado inválida");
     const state = {
       pool: {
         sat: BigInt(raw.pool.sat),

@@ -38,3 +38,13 @@ testnet proof of concept:
 
 Both currently advertise `sat` and `usd` test units. A future backend can
 replace the browser-local adapter with actual Cashu wallet and pool custody.
+
+## Nutshell backend reference
+
+The Granola `NutshellWalletBackend` is the reference for the future Cashu
+adapter, not a dependency of this browser PoC. That backend establishes the
+required production boundary: normalize the configured unit and mint URL,
+refresh keysets and input fees, validate TokenV4 mint/unit, verify DLEQ and
+proof state, and use a prepare/commit/recover flow around mint swaps. The demo
+deliberately stops before that boundary and labels its faucet and LP receipt as
+synthetic.

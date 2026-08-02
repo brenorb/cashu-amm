@@ -37,6 +37,10 @@ test("faucet credits synthetic units and records an event", () => {
   assert.deepEqual(state.activities.map(({ type }) => type), ["Faucet", "Faucet"]);
 });
 
+test("faucet rejects inherited object keys", () => {
+  assert.throws(() => applyFaucet(seed(), "toString"), /faucet inválido/i);
+});
+
 test("proportional deposit debits wallet, mints shares, and returns a mock bearer receipt", () => {
   let state = applyFaucet(seed(), "sat", { id: "faucet-sat", time: "2026-01-01T00:00:00.000Z" });
   state = applyFaucet(state, "usd", { id: "faucet-usd", time: "2026-01-01T00:00:01.000Z" });
@@ -111,6 +115,8 @@ test("serialization round-trips BigInt state and rejects invalid state", () => {
   state = applyFaucet(state, "usd", { id: "faucet-2", time: "2026-01-01T00:00:01.000Z" });
   const restored = deserializeState(serializeState(state));
   assert.deepEqual(restored, state);
+  assert.match(serializeState(state), /"version":1/);
+  assert.throws(() => deserializeState(JSON.stringify({ version: 2 })), /estado inválido/i);
   assert.throws(() => deserializeState(JSON.stringify({ wallet: { sat: "-1" } })), /estado inválido/i);
   assert.throws(() => deserializeState(JSON.stringify({
     pool: { sat: "1000000", usd: "50000", shares: "223606" },
@@ -124,6 +130,15 @@ test("serialization round-trips BigInt state and rejects invalid state", () => {
     activities: [],
     lastLpToken: "cashu-amm-mock:bad"
   })), /estado inválido/i);
+});
+
+test("mock LP receipts require a non-empty nonce", () => {
+  assert.throws(() => depositLiquidity(
+    applyFaucet(applyFaucet(seed(), "sat"), "usd"),
+    10_000n,
+    500n,
+    { nonce: "" }
+  ), /nonce LP inválido/i);
 });
 
 test("invalid operations fail without changing the input state", () => {

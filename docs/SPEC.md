@@ -165,6 +165,9 @@ wallet:  sat, usd, lp
 ledger:  eventos locais
 ```
 
+O snapshot serializado inclui `version: 1`; snapshots de outra versão são
+descartados e a demo volta ao seed inicial.
+
 Cada ação é executada de forma serial pelo JavaScript da página. Não existe
 reservation lease, `state_seq` distribuído ou consenso entre usuários.
 
