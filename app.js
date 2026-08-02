@@ -1,69 +1,33 @@
 import {
   FEE_BPS,
   amountsForRedemption,
-  initialShareSupply,
   poolPriceUsdPerBtc,
   quoteExactIn,
   sharesForDeposit
 } from "./amm.js";
+import {
+  applyFaucet,
+  createInitialState,
+  depositLiquidity,
+  deserializeState,
+  executeSwap,
+  redeemLiquidity,
+  serializeState
+} from "./poc.js";
 
 const STORAGE_KEY = "cashu-amm-poc-v1";
-const INITIAL_RESERVE_SAT = 1_000_000n;
-const INITIAL_RESERVE_USD = 50_000n;
-const FAUCET_SAT = 250_000n;
-const FAUCET_USD = 25_000n;
-
-function initialState() {
-  return {
-    pool: {
-      sat: INITIAL_RESERVE_SAT,
-      usd: INITIAL_RESERVE_USD,
-      shares: initialShareSupply(INITIAL_RESERVE_SAT, INITIAL_RESERVE_USD)
-    },
-    wallet: { sat: 0n, usd: 0n, lp: 0n },
-    activities: [],
-    lastLpToken: ""
-  };
-}
 
 function loadState() {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!raw) return initialState();
-    return {
-      pool: {
-        sat: BigInt(raw.pool.sat),
-        usd: BigInt(raw.pool.usd),
-        shares: BigInt(raw.pool.shares)
-      },
-      wallet: {
-        sat: BigInt(raw.wallet.sat),
-        usd: BigInt(raw.wallet.usd),
-        lp: BigInt(raw.wallet.lp)
-      },
-      activities: Array.isArray(raw.activities) ? raw.activities : [],
-      lastLpToken: raw.lastLpToken || ""
-    };
+    const serialized = localStorage.getItem(STORAGE_KEY);
+    return serialized ? deserializeState(serialized) : createInitialState();
   } catch {
-    return initialState();
+    return createInitialState();
   }
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    pool: {
-      sat: state.pool.sat.toString(),
-      usd: state.pool.usd.toString(),
-      shares: state.pool.shares.toString()
-    },
-    wallet: {
-      sat: state.wallet.sat.toString(),
-      usd: state.wallet.usd.toString(),
-      lp: state.wallet.lp.toString()
-    },
-    activities: state.activities,
-    lastLpToken: state.lastLpToken
-  }));
+  localStorage.setItem(STORAGE_KEY, serializeState(state));
 }
 
 function byId(id) {
@@ -113,28 +77,6 @@ function setMessage(id, text, type = "") {
   const element = byId(id);
   element.textContent = text;
   element.className = `form-message ${type}`.trim();
-}
-
-function addActivity(type, description, amount) {
-  state.activities.unshift({
-    id: crypto.randomUUID(),
-    type,
-    description,
-    amount,
-    time: new Date().toISOString()
-  });
-  state.activities = state.activities.slice(0, 12);
-}
-
-function createMockLpToken(amount) {
-  const payload = {
-    mock: true,
-    kind: "cashu-amm-lp",
-    pool: "btc-usd-poc",
-    amount: amount.toString(),
-    nonce: crypto.randomUUID()
-  };
-  return `cashu-amm-mock:${btoa(JSON.stringify(payload)).replaceAll("=", "")}`;
 }
 
 function currentPrice() {
@@ -295,13 +237,7 @@ function wireTabs() {
 function wireFaucet() {
   for (const button of document.querySelectorAll("[data-faucet]")) {
     button.addEventListener("click", () => {
-      if (button.dataset.faucet === "sat") {
-        state.wallet.sat += FAUCET_SAT;
-        addActivity("Faucet", "Mock SAT emitido para a carteira local", formatSat(FAUCET_SAT));
-      } else {
-        state.wallet.usd += FAUCET_USD;
-        addActivity("Faucet", "Mock USD emitido para a carteira local", formatUsd(FAUCET_USD));
-      }
+      state = applyFaucet(state, button.dataset.faucet);
       saveState();
       render();
     });
@@ -316,17 +252,8 @@ function wireLiquidity() {
     try {
       const sat = parseInteger(byId("liquidity-sat").value, "SAT");
       const usd = parseUsd(byId("liquidity-usd").value);
-      if (sat > state.wallet.sat || usd > state.wallet.usd) throw new Error("Saldo de teste insuficiente para este depósito.");
-      const shares = sharesForDeposit(state.pool.sat, state.pool.usd, state.pool.shares, sat, usd);
-
-      state.wallet.sat -= sat;
-      state.wallet.usd -= usd;
-      state.wallet.lp += shares;
-      state.pool.sat += sat;
-      state.pool.usd += usd;
-      state.pool.shares += shares;
-      state.lastLpToken = createMockLpToken(shares);
-      addActivity("Liquidity", "Depósito proporcional e LP token emitido", `${formatInteger(shares)} LP`);
+      const result = depositLiquidity(state, sat, usd);
+      state = result.state;
       saveState();
       setMessage("liquidity-message", "Depósito concluído. O bearer receipt mock está abaixo.", "success");
       render();
@@ -348,16 +275,8 @@ function wireRedemption() {
     event.preventDefault();
     try {
       const shares = parseInteger(byId("redeem-shares").value, "Shares");
-      if (shares > state.wallet.lp) throw new Error("Você não possui essas shares.");
-      const amounts = amountsForRedemption(state.pool.sat, state.pool.usd, state.pool.shares, shares);
-
-      state.wallet.lp -= shares;
-      state.wallet.sat += amounts.sat;
-      state.wallet.usd += amounts.usd;
-      state.pool.shares -= shares;
-      state.pool.sat -= amounts.sat;
-      state.pool.usd -= amounts.usd;
-      addActivity("Redeem", "LP shares resgatadas pro rata", `${formatSat(amounts.sat)} + ${formatUsd(amounts.usd)}`);
+      const result = redeemLiquidity(state, shares);
+      state = result.state;
       saveState();
       byId("redeem-shares").value = "";
       setMessage("redeem-message", "Participação resgatada.", "success");
@@ -386,30 +305,9 @@ function wireTrade() {
     event.preventDefault();
     try {
       const input = tradeInputAmount();
-      const quote = getTradeQuote();
       const satToUsd = direction === "sat-usd";
-      if (satToUsd && input > state.wallet.sat) throw new Error("Saldo SAT insuficiente.");
-      if (!satToUsd && input > state.wallet.usd) throw new Error("Saldo USD insuficiente.");
-
-      if (satToUsd) {
-        state.wallet.sat -= input;
-        state.wallet.usd += quote.amountOut;
-        state.pool.sat = quote.nextReserveIn;
-        state.pool.usd = quote.nextReserveOut;
-      } else {
-        state.wallet.usd -= input;
-        state.wallet.sat += quote.amountOut;
-        state.pool.usd = quote.nextReserveIn;
-        state.pool.sat = quote.nextReserveOut;
-      }
-
-      addActivity(
-        "Swap",
-        satToUsd ? "SAT trocado por USD" : "USD trocado por SAT",
-        satToUsd
-          ? `${formatSat(input)} → ${formatUsd(quote.amountOut)}`
-          : `${formatUsd(input)} → ${formatSat(quote.amountOut)}`
-      );
+      const result = executeSwap(state, direction, input);
+      state = result.state;
       saveState();
       setMessage("trade-message", "Swap executado contra a nova reserva.", "success");
       render();
@@ -451,7 +349,7 @@ wireRedemption();
 wireTrade();
 byId("refresh-mints").addEventListener("click", checkMints);
 byId("reset-demo").addEventListener("click", () => {
-  state = initialState();
+  state = createInitialState();
   saveState();
   setMessage("liquidity-message", "Demo reiniciada.", "success");
   setMessage("trade-message", "");
