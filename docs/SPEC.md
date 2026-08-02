@@ -238,5 +238,6 @@ receipt mock e serialização estão em `poc.js`. A página em `index.html` e
 read-only dos mints está isolada em `mints.js`.
 
 `npm test` executa os testes matemáticos (`amm.test.js`), de transições e
-invariantes (`poc.test.js`), de disponibilidade dos mints (`mints.test.js`) e
-do contrato mínimo da interface (`ui-contract.test.js`).
+invariantes (`poc.test.js`), de parsing de inputs (`inputs.test.js`), de
+disponibilidade dos mints (`mints.test.js`) e do contrato mínimo da interface
+(`ui-contract.test.js`).

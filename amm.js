@@ -95,7 +95,6 @@ export function amountsForRedemption(
 
   const sat = reserveSat * shares / totalShares;
   const usd = reserveUsd * shares / totalShares;
-  if (sat <= 0n || usd <= 0n) throw new RangeError("redemption is too small");
   return { sat, usd };
 }
 
