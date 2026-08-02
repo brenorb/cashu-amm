@@ -11,16 +11,29 @@ test("the page exposes the two required operations as tabs", () => {
   assert.match(html, /aria-controls="trade-panel"/);
 });
 
-test("the page exposes faucet, liquidity, trade, redemption, and mint status controls", () => {
+test("the page exposes Cashu token operations and mint status controls", () => {
   for (const id of [
-    "reset-demo",
+    "refresh-pool",
     "liquidity-form",
     "trade-form",
     "redeem-form",
     "activity-ledger",
-    "refresh-mints"
+    "refresh-mints",
+    "sat-token-input",
+    "usd-token-input",
+    "trade-token-input",
+    "lp-token-input",
+    "mint-quote-form",
+    "mint-paid"
   ]) assert.match(html, new RegExp(`id="${id}"`));
-  assert.match(html, /data-faucet="sat"/);
-  assert.match(html, /data-faucet="usd"/);
+  assert.doesNotMatch(html, /data-faucet=/);
+  assert.doesNotMatch(html, /MOCK BEARER RECEIPT/);
 });
 
+test("the browser client delegates state to the backend API", async () => {
+  const app = await readFile(new URL("./app.js", import.meta.url), "utf8");
+  assert.doesNotMatch(app, /localStorage/);
+  assert.match(app, /\/api\/liquidity\/deposit/);
+  assert.match(app, /\/api\/swap/);
+  assert.match(app, /\/api\/liquidity\/redeem/);
+});

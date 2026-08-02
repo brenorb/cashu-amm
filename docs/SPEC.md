@@ -1,9 +1,10 @@
 # Cashu AMM — especificação da PoC
 
-Status: proposta executável para a demo da semana.
+Status: implementação executável com backend Cashu/Nutshell.
 
 Esta especificação descreve a prova de conceito do Cashu AMM. Ela não define
-um protocolo de produção, uma custódia real ou uma DEX trustless.
+um protocolo de produção ou uma DEX trustless. O backend, porém, movimenta
+proofs Cashu reais quando configurado com carteiras e mints do operador.
 
 ## 1. Objetivo
 
@@ -33,24 +34,26 @@ Incluído:
 - depósitos proporcionais dos dois ativos;
 - LP shares fungíveis;
 - resgates proporcionais;
-- estado persistido no `localStorage` do navegador;
-- faucet sintético para os saldos da demo;
-- consulta somente leitura aos mints Testnut usados pelo Granola.
+- backend HTTP server-side;
+- proofs Cashu TokenV4 como entrada e saída;
+- três carteiras Nutshell persistentes: SAT, USD e LP;
+- estado da pool persistido no servidor;
+- emissão de cotações de mint para obter tokens Testnet pagando a invoice;
+- consulta de capacidade dos mints antes da operação.
 
 Fora do escopo:
 
-- custodiar ou gastar proofs Cashu reais;
 - pool compartilhada entre navegadores;
-- backend, operador remoto ou banco de dados;
+- operação trustless sem operador;
 - HTLC, Nostr, oracle, router multi-pool ou federação;
 - depósito single-sided;
 - StableSwap, Weighted Math ou concentrated liquidity;
 - proof of reserves;
 - governança, recuperação de chaves e tratamento de insolvência.
 
-## 3. Estado inicial
+## 3. Estado inicial e configuração
 
-A pool começa com reservas sintéticas:
+A pool começa com tokens Cashu fornecidos pelo operador:
 
 | Campo | Valor |
 | --- | ---: |
@@ -60,8 +63,15 @@ A pool começa com reservas sintéticas:
 | Fee | `1%` |
 | LP supply inicial | `floor(sqrt(1.000.000 × 50.000)) = 223.606 LP` |
 
-O seed inicial pertence ao operador da demo. A carteira do visitante começa
-sem saldo e pode receber valores sintéticos pelos botões de faucet.
+O seed é recebido uma vez pelas carteiras Nutshell do backend e deve obedecer
+`shares = floor(sqrt(reserve_sat × reserve_usd))`. Os tokens de seed não ficam
+no navegador. A configuração mínima é:
+
+- `CASHU_AMM_SAT_MINT_URL` e `CASHU_AMM_USD_MINT_URL`;
+- `CASHU_AMM_LP_MINT_URL` e `CASHU_AMM_LP_UNIT`;
+- `CASHU_AMM_SEED_SAT_TOKEN`, `CASHU_AMM_SEED_USD_TOKEN` e
+  `CASHU_AMM_SEED_LP_TOKEN` na primeira inicialização;
+- `CASHU_AMM_DATA_DIR` para os bancos Nutshell e o snapshot da pool.
 
 ## 4. Modelo de preço
 
@@ -107,10 +117,10 @@ O swap falha quando:
 - o output arredondado é zero;
 - a operação produziria um estado inválido.
 
-O operador não usa HTLC neste experimento. A execução é uma operação local
-serializada no navegador; a aplicação registra um evento e atualiza o estado.
+O operador não usa HTLC neste experimento. A execução é uma operação serializada
+no backend; o navegador apenas envia o TokenV4 e exibe a resposta.
 
-## 6. Liquidez e LP shares
+## 6. Liquidez e LP shares Cashu
 
 ### 6.1 Depósito
 
@@ -140,36 +150,33 @@ amount_usd = floor(R_usd × L / S)
 O resgate falha se `L > S` ou se o visitante não possui as shares. O saldo de
 shares é reduzido somente junto com a atualização dos dois ativos.
 
-### 6.3 Bearer receipt
+### 6.3 Token LP
 
-O receipt emitido pela demo tem o formato explícito:
+Cada LP share corresponde a uma unidade da carteira de share mint configurada.
+O depósito devolve um TokenV4 dessa mint; o resgate recebe esse TokenV4 no
+backend, invalida as provas recebidas na wallet do operador e emite os dois
+tokens subjacentes.
+O token LP é bearer Cashu real, mas não é prova de solvência independente: a
+solvência depende das reservas das carteiras do operador.
 
-```text
-cashu-amm-mock:<base64-json>
-```
+## 7. Estado, concorrência e recuperação
 
-O payload contém `kind`, `pool`, `amount`, `nonce` e `mock: true`. Ele não é um
-token Cashu válido e não deve ser apresentado como prova de solvência.
-
-Uma integração futura poderá substituir esse receipt por proofs de uma share
-mint, mas isso exigirá um operador/backend para custodiar as reservas e emitir
-os outputs reais.
-
-## 7. Estado e concorrência
-
-O estado da PoC é um único objeto local com:
+O estado econômico da PoC é um único objeto server-side com:
 
 ```text
 pool:    reserve_sat, reserve_usd, shares
-wallet:  sat, usd, lp
-ledger:  eventos locais
+wallet:  três carteiras Nutshell do operador; a carteira do usuário fica fora do servidor
+ledger:  eventos server-side
 ```
 
-O snapshot serializado inclui `version: 1`; snapshots de outra versão são
-descartados e a demo volta ao seed inicial.
+O snapshot server-side inclui `version: 1` e é gravado por rename atômico.
+Cada operação serializa pelo lock do processo, grava um evento e mantém os
+bancos Nutshell como fonte de verdade dos proofs.
 
-Cada ação é executada de forma serial pelo JavaScript da página. Não existe
-reservation lease, `state_seq` distribuído ou consenso entre usuários.
+Se o processo cair depois de um split no mint, a operação deve permanecer
+identificável pelo journal e os outputs reservados não podem ser reutilizados.
+O operador precisa reconciliar operações pendentes antes de reabrir a pool;
+isso é a versão PoC do prepare/commit/recover usado pelo Nutshell/Granola.
 
 ## 8. Arredondamento e tipos
 
@@ -187,7 +194,7 @@ Após qualquer operação bem-sucedida:
 
 - reservas e saldos são não negativos;
 - nenhum output ultrapassa a reserva correspondente;
-- `wallet.lp <= pool.shares`;
+- o total de LP contabilizado pela pool não excede o seed e os depósitos aceitos;
 - `pool.shares` diminui somente em resgates;
 - swaps não criam nem destroem LP shares;
 - a fee permanece na pool;
@@ -213,34 +220,48 @@ Os testes matemáticos devem cobrir:
 
 O teste manual deve demonstrar:
 
-1. emitir saldo sintético BTC e USD;
-2. depositar liquidez e receber LP receipt;
+1. obter e pagar uma mint quote de SAT/USD, ou colar tokens Cashu já existentes;
+2. depositar os dois TokenV4 e receber o TokenV4 de LP;
 3. executar BTC → USD;
 4. executar USD → BTC;
 5. observar reservas, preço, fee e invariant mudarem;
 6. resgatar parte das shares;
-7. reiniciar a demo, recarregar a página e confirmar que o estado local foi apagado.
+7. reiniciar o backend e confirmar que o snapshot e os bancos Nutshell foram
+   reabertos sem perder a pool.
 
-## 11. Testnet e próxima integração
+## 11. Testnet e integração Cashu
 
 O painel consulta os endpoints públicos usados no protótipo Granola:
 
 - `https://testnut.cashu.space`;
 - `https://nofee.testnut.cashu.space`.
 
-Essa consulta é informativa e não movimenta fundos. A próxima etapa, caso a
-PoC valide a experiência, é substituir o faucet local por uma carteira Cashu
-de testnet e definir um serviço de pool que receba proofs, atualize reservas e
-emita outputs. Essa etapa não faz parte desta especificação.
+O backend usa essas mints apenas quando configuradas explicitamente. A rota de
+mint quote chama `Wallet.request_mint`; depois que o usuário paga a invoice,
+`Wallet.mint` e `serialize_proofs(include_dleq=True)` devolvem um TokenV4.
+Nenhum faucet sintético é usado.
 
-## 12. Mapa da implementação
+## 12. Contrato HTTP
 
-O núcleo matemático está em `amm.js`; as transições de estado, ledger, faucet,
-receipt mock e serialização estão em `poc.js`. A página em `index.html` e
-`app.js` expõe as duas abas e persiste a simulação no `localStorage`. A consulta
-read-only dos mints está isolada em `mints.js`.
+- `GET /api/pool`: reservas, preço, `k`, fee e ledger;
+- `POST /api/liquidity/deposit`: recebe `{sat_token, usd_token}` e devolve
+  `{shares, lp_token}`;
+- `POST /api/swap`: recebe `{direction, token}` e devolve o token da outra
+  carteira;
+- `POST /api/liquidity/redeem`: recebe `{lp_token}` e devolve tokens SAT/USD;
+- `GET /health`: verifica que o processo está vivo.
 
-`npm test` executa os testes matemáticos (`amm.test.js`), de transições e
-invariantes (`poc.test.js`), de parsing de inputs (`inputs.test.js`), de
-disponibilidade dos mints (`mints.test.js`) e do contrato mínimo da interface
-(`ui-contract.test.js`).
+Falhas depois de receber um token retornam refunds Cashu quando possível e não
+alteram o snapshot econômico. Falhas de compensação ficam como operação
+pendente para reconciliação do operador.
+
+## 13. Mapa da implementação
+
+O núcleo de matemática de referência está em `amm.js`; o backend real está
+em `backend/amm.py`, `backend/service.py`, `backend/nutshell.py`,
+`backend/store.py` e `backend/app.py`. A UI chama o contrato HTTP e não mantém
+reservas autoritativas no `localStorage`.
+
+`npm test` cobre a UI e a matemática JS. `pytest backend/tests` cobre a
+matemática Python, gateways, refunds, persistência e contrato HTTP. O adapter
+`backend/nutshell.py` é a única camada que conhece a API do Nutshell.

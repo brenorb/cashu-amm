@@ -1,50 +1,69 @@
 # Cashu AMM proof of concept
 
-Static browser demo for a BTC/USD constant-product automated market maker using
-Cashu-inspired bearer receipts.
+PoC de uma pool BTC/USD `x × y = k` com fee fixa de 1%, usando proofs Cashu
+reais através de três wallets Nutshell no backend: SAT, USD e LP.
 
-The demo has two flows:
+O navegador não guarda reservas, saldos ou recibos sintéticos. Ele apenas cola
+TokenV4, chama a API e mostra os tokens devolvidos. A operação é custodial e
+single-process: adequada para a demo, não para fundos reais.
 
-1. Add proportional SAT/USD liquidity and receive a mock LP bearer token.
-2. Trade test balances against the pool with a fixed 1% fee.
+## Desenvolvimento
 
-## Important boundary
+O backend requer Python 3.12 e `cashu==0.20.2` (a mesma linha usada pelo
+Nutshell/Granola):
 
-This site is a local simulation. Tokens, wallet balances, pool reserves and the
-event log are stored only in the current browser. It does not accept, custody or
-spend real Cashu proofs. The public Testnut endpoints are queried only to show
-their current availability.
+```sh
+uv sync
+uv run uvicorn backend.main:app --host 127.0.0.1 --port 8090
+```
 
-The initial pool contains synthetic reserves priced at USD 50,000/BTC. BTC uses
-satoshis, USD uses cents, and all settlement math uses integers. Outputs, LP
-shares and redemptions round down in favor of the pool.
-
-## Run locally
+O frontend estático pode ser servido em outro terminal:
 
 ```sh
 npm test
 npm run serve
 ```
 
-Then open `http://localhost:4173`.
+Abra `http://localhost:4173`. Para apontar a UI para outro backend, defina
+`window.CASHU_AMM_API_URL` antes de carregar `app.js`.
 
-## Testnet references
+## Configuração Nutshell
 
-The availability panel follows the same public test mints used by the Granola
-testnet proof of concept:
+Defina as mints e os tokens de seed antes da primeira inicialização:
 
-- `https://testnut.cashu.space`
-- `https://nofee.testnut.cashu.space`
+```sh
+export CASHU_AMM_SAT_MINT_URL=https://testnut.cashu.space
+export CASHU_AMM_USD_MINT_URL=https://testnut.cashu.space
+export CASHU_AMM_LP_MINT_URL=https://testnut.cashu.space
+export CASHU_AMM_LP_UNIT=sat
+export CASHU_AMM_SEED_SAT_TOKEN='cashuB…'
+export CASHU_AMM_SEED_USD_TOKEN='cashuB…'
+export CASHU_AMM_SEED_LP_TOKEN='cashuB…'
+export CASHU_AMM_DATA_DIR=./data
+```
 
-Both currently advertise `sat` and `usd` test units. A future backend can
-replace the browser-local adapter with actual Cashu wallet and pool custody.
+O seed inicial deve conter `floor(sqrt(reserve_sat * reserve_usd))` unidades LP.
+Depois da primeira execução, o snapshot e os bancos Nutshell ficam em
+`CASHU_AMM_DATA_DIR`. Se houver uma operação pendente no journal, o backend
+abre em modo fechado e exige reconciliação manual do operador.
 
-## Nutshell backend reference
+## Fluxo da demo
 
-The Granola `NutshellWalletBackend` is the reference for the future Cashu
-adapter, not a dependency of this browser PoC. That backend establishes the
-required production boundary: normalize the configured unit and mint URL,
-refresh keysets and input fees, validate TokenV4 mint/unit, verify DLEQ and
-proof state, and use a prepare/commit/recover flow around mint swaps. The demo
-deliberately stops before that boundary and labels its faucet and LP receipt as
-synthetic.
+1. Gere uma mint quote SAT/USD, pague a invoice e copie o TokenV4 emitido.
+2. Cole SAT + USD na aba **Liquidez** e guarde o TokenV4 LP recebido.
+3. Cole um TokenV4 na aba **Trade**, escolha a direção e guarde o output.
+4. Cole o LP na gaveta de resgate para receber os dois ativos subjacentes.
+
+As respostas de erro incluem refunds Cashu quando a compensação foi possível.
+
+## Testes
+
+```sh
+npm test
+/Users/breno/Documents/code/PROJECTS/granola/.venv/bin/python -m pytest backend/tests -q
+```
+
+Os testes Python cobrem matemática, persistência, journal, contrato HTTP,
+atomicidade e a fronteira de validação do gateway Nutshell. Não é necessário
+um mint online para executar a suíte; a emissão e o recebimento reais são
+exercitados quando o backend é configurado com mints testnet.

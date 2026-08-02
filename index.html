@@ -15,8 +15,8 @@
         <span>Cashu AMM <small>proof of concept</small></span>
       </a>
       <div class="header-actions">
-        <span class="mode-pill"><i></i> mock local</span>
-        <button class="text-button" id="reset-demo" type="button">Reiniciar demo</button>
+        <span class="mode-pill"><i></i> backend Nutshell</span>
+        <button class="text-button" id="refresh-pool" type="button">Atualizar pool</button>
       </div>
     </header>
 
@@ -30,8 +30,8 @@
             e trocar BTC por USD sem order book.
           </p>
           <div class="hero-notice">
-            <strong>Demo local.</strong> Tokens e reservas são simulados neste navegador.
-            Os mints testnet são consultados apenas para verificar disponibilidade.
+            <strong>PoC custodial.</strong> O backend opera três wallets Nutshell e só aceita
+            TokenV4 reais dos mints configurados.
           </div>
         </div>
 
@@ -75,24 +75,24 @@
           <div class="balance-stack">
             <article class="balance-card warm">
               <span>Bitcoin</span>
-              <strong id="wallet-sat">0 sat</strong>
-              <button type="button" data-faucet="sat">Pegar 250.000 test sat</button>
+              <strong id="wallet-sat">via token Cashu</strong>
+              <small>cole tokens na aba Liquidez/Trade</small>
             </article>
             <article class="balance-card cool">
               <span>Dólar</span>
-              <strong id="wallet-usd">$0.00</strong>
-              <button type="button" data-faucet="usd">Pegar $250 test USD</button>
+              <strong id="wallet-usd">via token Cashu</strong>
+              <small>obtenha por mint quote ou outra wallet</small>
             </article>
             <article class="balance-card ink">
               <span>Participação</span>
-              <strong id="wallet-lp">0 LP</strong>
-              <small id="wallet-share-percent">0% da pool</small>
+              <strong id="wallet-lp">bearer token</strong>
+              <small id="wallet-share-percent">não custodial no navegador</small>
             </article>
           </div>
 
           <div class="mint-status">
             <div class="mint-title">
-              <span>Mints usados pelo Granola</span>
+              <span>Mints configurados / referência</span>
               <button type="button" id="refresh-mints" class="icon-button" aria-label="Verificar mints novamente">↻</button>
             </div>
             <div class="mint-row" data-mint="https://testnut.cashu.space">
@@ -102,6 +102,7 @@
               <i></i><span>Testnut nofee</span><small>verificando…</small>
             </div>
           </div>
+          <p class="form-message" id="connection-message" role="status"></p>
         </aside>
 
         <section class="terminal-card">
@@ -120,26 +121,24 @@
                 <p class="eyebrow">PROVIDE LIQUIDITY</p>
                 <h2>Deposite o par.<br />Leve o recibo.</h2>
               </div>
-              <p>O depósito segue a proporção atual da pool. Shares e resgates sempre arredondam a favor da pool.</p>
+              <p>Envie um TokenV4 SAT e um TokenV4 USD dos mints configurados. O backend recebe ambos e devolve um TokenV4 LP.</p>
             </div>
 
             <form id="liquidity-form" class="operation-form">
               <label class="amount-field">
-                <span>Você deposita</span>
-                <div><input id="liquidity-sat" inputmode="numeric" autocomplete="off" value="10000" /><b>SAT</b></div>
-                <small id="liquidity-sat-balance">Disponível: 0 sat</small>
+                <span>Token Cashu de SAT</span>
+                <div><textarea id="sat-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
               </label>
               <div class="pair-link" aria-hidden="true">+</div>
               <label class="amount-field">
-                <span>Na proporção</span>
-                <div><input id="liquidity-usd" inputmode="decimal" autocomplete="off" value="5.00" /><b>USD</b></div>
-                <small id="liquidity-usd-balance">Disponível: $0.00</small>
+                <span>Token Cashu de USD</span>
+                <div><textarea id="usd-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
               </label>
 
               <div class="quote-sheet">
-                <div><span>Você recebe</span><strong id="liquidity-preview">— LP</strong></div>
-                <div><span>Participação estimada</span><strong id="liquidity-share-preview">—</strong></div>
-                <div><span>Modelo</span><strong>Proporcional</strong></div>
+                <div><span>Você recebe</span><strong>TokenV4 LP</strong></div>
+                <div><span>Modelo</span><strong>Constant product</strong></div>
+                <div><span>Fee</span><strong>1%</strong></div>
               </div>
 
               <button class="primary-action" type="submit">
@@ -150,10 +149,11 @@
 
             <div class="token-receipt" id="token-receipt" hidden>
               <div>
-                <p class="eyebrow">MOCK BEARER RECEIPT</p>
+                <p class="eyebrow">CASHU BEARER RECEIPT</p>
                 <strong>Seu LP token foi emitido</strong>
               </div>
               <code id="lp-token-value"></code>
+              <code id="refunds-value"></code>
               <button type="button" id="copy-lp-token">Copiar</button>
             </div>
 
@@ -161,10 +161,10 @@
               <summary>Resgatar LP shares <span>pro rata ↘</span></summary>
               <form id="redeem-form">
                 <label class="amount-field">
-                  <span>Shares para resgatar</span>
-                  <div><input id="redeem-shares" inputmode="numeric" autocomplete="off" placeholder="0" /><b>LP</b></div>
+                  <span>Token Cashu de LP</span>
+                  <div><textarea id="lp-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
                 </label>
-                <div class="redeem-preview" id="redeem-preview">Você receberá —</div>
+                <div class="redeem-preview" id="redeem-output">Você receberá dois TokenV4 —</div>
                 <button class="secondary-action" type="submit">Resgatar participação</button>
                 <p class="form-message" id="redeem-message" role="status"></p>
               </form>
@@ -177,7 +177,7 @@
                 <p class="eyebrow">SWAP EXACT-IN</p>
                 <h2>Troque contra<br />a curva.</h2>
               </div>
-              <p>O preço nasce das reservas. A fee de 1% fica na pool e o output é arredondado para baixo.</p>
+              <p>Escolha a direção e cole o TokenV4 de entrada. A cotação e o output são calculados pelo backend.</p>
             </div>
 
             <form id="trade-form" class="operation-form trade-form">
@@ -187,22 +187,21 @@
               </div>
 
               <label class="amount-field trade-amount">
-                <span>Você envia</span>
-                <div><input id="trade-input" inputmode="decimal" autocomplete="off" value="10000" /><b id="trade-input-unit">SAT</b></div>
-                <small id="trade-balance">Disponível: 0 sat</small>
+                <span>Token Cashu de entrada</span>
+                <div><textarea id="trade-token-input" rows="4" placeholder="Cole aqui o TokenV4 SAT"></textarea></div>
               </label>
 
               <div class="trade-arrow" aria-hidden="true">↓</div>
 
               <div class="output-field">
                 <span>Você recebe</span>
-                <div><strong id="trade-output">—</strong><b id="trade-output-unit">USD</b></div>
+                <div><strong id="trade-output-amount">—</strong><b>output</b></div>
               </div>
 
               <div class="quote-sheet">
-                <div><span>Fee da pool</span><strong id="trade-fee">—</strong></div>
-                <div><span>Price impact</span><strong id="trade-impact">—</strong></div>
-                <div><span>Próximo spot</span><strong id="trade-next-price">—</strong></div>
+                <div><span>Token de saída</span><strong id="trade-output-token">—</strong></div>
+                <div><span>Fee da pool</span><strong>1%</strong></div>
+                <div><span>Estado</span><strong>server-authoritative</strong></div>
               </div>
 
               <button class="primary-action dark" type="submit">
@@ -214,13 +213,35 @@
         </section>
       </section>
 
+      <section class="mint-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">TESTNET MINT</p>
+            <h2>Obter TokenV4</h2>
+          </div>
+          <p>O backend pede a quote na mint Nutshell configurada. Pague a invoice fora desta página.</p>
+        </div>
+        <form id="mint-quote-form" class="operation-form">
+          <label class="amount-field"><span>Ativo</span><div><select id="mint-asset"><option value="sat">SAT</option><option value="usd">USD</option></select></div></label>
+          <label class="amount-field"><span>Quantidade mínima</span><div><input id="mint-amount" type="number" min="1" value="1000" /></div></label>
+          <button class="primary-action" type="submit"><span>Gerar invoice</span><b>↗</b></button>
+          <p class="form-message" id="mint-message" role="status"></p>
+        </form>
+        <div class="quote-sheet" id="mint-pay-step" hidden>
+          <div><span>Invoice Lightning</span><code id="mint-invoice"></code></div>
+          <div><span>Quote id</span><code id="mint-quote-id"></code></div>
+          <button class="secondary-action" id="mint-paid" type="button">Já paguei — emitir TokenV4</button>
+          <code id="mint-token-output"></code>
+        </div>
+      </section>
+
       <section class="ledger-section">
         <div class="section-heading">
           <div>
             <p class="eyebrow">LOCAL EVENT LOG</p>
             <h2>O que aconteceu</h2>
           </div>
-          <p>Um ledger de demonstração, armazenado somente neste navegador.</p>
+          <p>Ledger server-side retornado pelo backend Nutshell.</p>
         </div>
         <div class="ledger" id="activity-ledger"></div>
       </section>
@@ -228,7 +249,7 @@
 
     <footer>
       <span>Cashu AMM / experimental desk</span>
-      <span>testnet only · no real funds</span>
+      <span>testnet only · operador custodial</span>
     </footer>
 
     <script type="module" src="./app.js"></script>

@@ -1,0 +1,30 @@
+[project]
+name = "cashu-amm-backend"
+version = "0.2.0"
+description = "Cashu AMM backend using the Nutshell wallet"
+requires-python = ">=3.12"
+dependencies = [
+  "cashu==0.20.2",
+  "marshmallow<4",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.31,<1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.4",
+  "pytest-asyncio>=1.3",
+  "httpx>=0.25.1,<0.26",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+pythonpath = ["."]
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "UP"]
