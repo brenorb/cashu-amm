@@ -75,7 +75,9 @@ class OperationJournal:
     def _write(self, operation_id: str, record: dict[str, Any]) -> None:
         target = self._path(operation_id)
         temporary = target.with_suffix(".tmp")
-        temporary.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+        temporary.write_text(
+            json.dumps(record, indent=2, sort_keys=True), encoding="utf-8"
+        )
         with temporary.open("rb") as handle:
             os.fsync(handle.fileno())
         os.replace(temporary, target)

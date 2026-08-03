@@ -1,0 +1,19 @@
+services:
+  cashu-amm:
+    build: .
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./data:/data
+    environment:
+      CASHU_AMM_DATA_DIR: /data/wallets
+      CASHU_AMM_SAT_MINT_URL: https://testnut.cashu.space
+      CASHU_AMM_USD_MINT_URL: https://testnut.cashu.space
+      CASHU_AMM_LP_MINT_URL: http://127.0.0.1:3338
+      MINT_PRIVATE_KEY: ${MINT_PRIVATE_KEY:?Set MINT_PRIVATE_KEY in .env}
+      MINT_DATABASE: /data/lp-mint
+      MINT_BACKEND_BOLT11_SAT: FakeWallet
+      MINT_INPUT_FEE_PPK: "0"
+      MINT_RATE_LIMIT: "false"
+      FAKEWALLET_DELAY_INCOMING_PAYMENT: "0"
+      FAKEWALLET_DELAY_OUTGOING_PAYMENT: "0"

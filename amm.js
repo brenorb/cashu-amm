@@ -95,6 +95,9 @@ export function amountsForRedemption(
 
   const sat = reserveSat * shares / totalShares;
   const usd = reserveUsd * shares / totalShares;
+  if (sat <= 0n || usd <= 0n) {
+    throw new RangeError("LP amount is too small to redeem both assets");
+  }
   return { sat, usd };
 }
 

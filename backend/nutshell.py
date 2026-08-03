@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,7 +29,9 @@ class NutshellGateway(CashuGateway):
             raise ValueError("mint URL and unit are required")
 
     @classmethod
-    async def open(cls, mint_url: str, db_path: str, name: str, unit: str) -> "NutshellGateway":
+    async def open(
+        cls, mint_url: str, db_path: str, name: str, unit: str
+    ) -> NutshellGateway:
         from cashu.wallet.wallet import Wallet
 
         wallet = await Wallet.with_db(mint_url, db_path, name, unit=unit)
@@ -60,6 +63,7 @@ class NutshellGateway(CashuGateway):
             raise OperationError("cashu_receive_failed", str(error)) from error
 
     async def send(self, amount: int) -> str:
+        send_proofs = []
         try:
             if type(amount) is not int or amount <= 0:
                 raise ValueError("Cashu send amount must be positive")
@@ -78,7 +82,34 @@ class NutshellGateway(CashuGateway):
         except OperationError:
             raise
         except Exception as error:
+            if send_proofs:
+                await self.wallet.set_reserved_for_send(send_proofs, reserved=False)
+                await self.wallet.load_proofs(reload=True)
             raise OperationError("cashu_send_failed", str(error)) from error
+
+    async def cancel(self, token: str) -> None:
+        """Release a token prepared by this wallet but not delivered to a user."""
+        from cashu.wallet.helpers import deserialize_token_from_string
+
+        try:
+            token_obj = deserialize_token_from_string(token)
+            token_mint = str(getattr(token_obj, "mint", "")).rstrip("/")
+            token_unit = _unit_name(getattr(token_obj, "unit", ""))
+            if token_mint != self.mint_url or token_unit != self.unit:
+                raise ValueError("Cashu token mint or unit does not match gateway")
+            await self.wallet.load_proofs(reload=True)
+            secrets = {proof.secret for proof in token_obj.proofs}
+            proofs = [proof for proof in self.wallet.proofs if proof.secret in secrets]
+            if len(proofs) != len(secrets) or any(
+                not proof.reserved for proof in proofs
+            ):
+                raise ValueError("Cashu token is not a pending send from this wallet")
+            await self.wallet.set_reserved_for_send(proofs, reserved=False)
+            await self.wallet.load_proofs(reload=True)
+        except OperationError:
+            raise
+        except Exception as error:
+            raise OperationError("cashu_cancel_failed", str(error)) from error
 
     async def burn(self, amount: int) -> None:
         """Consume LP proofs locally after a redemption is fully delivered.
@@ -106,6 +137,24 @@ class NutshellGateway(CashuGateway):
         except Exception as error:
             raise OperationError("cashu_burn_failed", str(error)) from error
 
+    async def issue(self, amount: int) -> str:
+        """Issue LP from the private loopback Nutshell mint."""
+        try:
+            quote = await self.wallet.request_mint(amount, memo="Cashu AMM LP")
+            for _ in range(50):
+                current = await self.wallet.get_mint_quote(str(quote.quote))
+                if current.paid:
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                raise TimeoutError("LP mint quote was not paid by the local mint")
+            proofs = await self.wallet.mint(amount, quote_id=str(quote.quote))
+            return await self._serialize_new_proofs(proofs, amount)
+        except OperationError:
+            raise
+        except Exception as error:
+            raise OperationError("cashu_issue_failed", str(error)) from error
+
     async def mint_quote(self, amount: int) -> dict[str, object]:
         try:
             quote = await self.wallet.request_mint(amount)
@@ -119,12 +168,31 @@ class NutshellGateway(CashuGateway):
 
     async def mint_paid(self, amount: int, quote_id: str) -> str:
         try:
-            await self.wallet.mint(amount, quote_id=quote_id, split=[amount])
-            return await self.send(amount)
+            await self.wallet.load_proofs(reload=True)
+            proofs = [
+                proof
+                for proof in self.wallet.proofs
+                if getattr(proof, "mint_id", None) == quote_id
+            ]
+            if not proofs:
+                proofs = await self.wallet.mint(amount, quote_id=quote_id)
+            return await self._serialize_new_proofs(proofs, amount)
         except OperationError:
             raise
         except Exception as error:
             raise OperationError("cashu_mint_failed", str(error)) from error
+
+    async def _serialize_new_proofs(self, proofs: list[Any], amount: int) -> str:
+        if sum(proof.amount for proof in proofs) != amount:
+            raise ValueError("Nutshell minted an unexpected amount")
+        if not all(getattr(proof, "reserved", False) for proof in proofs):
+            await self.wallet.set_reserved_for_send(proofs, reserved=True)
+        try:
+            return await self.wallet.serialize_proofs(proofs, include_dleq=True)
+        except Exception:
+            await self.wallet.set_reserved_for_send(proofs, reserved=False)
+            await self.wallet.load_proofs(reload=True)
+            raise
 
     def _available_balance(self) -> int:
         return sum(

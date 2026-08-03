@@ -51,10 +51,10 @@ test("redemption floors both outputs", () => {
   assert.equal(amounts.usd, 4_999n);
 });
 
-test("redemption accepts a valid share even when one floored output is zero", () => {
-  assert.deepEqual(
-    amountsForRedemption(1_000_000n, 50_000n, 223_606n, 1n),
-    { sat: 4n, usd: 0n }
+test("redemption rejects an LP amount that rounds either output to zero", () => {
+  assert.throws(
+    () => amountsForRedemption(1_000_000n, 50_000n, 223_606n, 1n),
+    /too small/
   );
 });
 
@@ -65,6 +65,6 @@ test("redemption rejects shares above total supply", () => {
   );
 });
 
-test("seeded pool starts at fifty thousand dollars per bitcoin", () => {
+test("reference reserves price bitcoin at fifty thousand dollars", () => {
   assert.equal(poolPriceUsdPerBtc(1_000_000n, 50_000n), 50_000);
 });

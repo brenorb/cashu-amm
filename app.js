@@ -1,9 +1,10 @@
 import { inspectMint } from "./mints.js";
 
-const API_BASE = (window.CASHU_AMM_API_URL || "http://127.0.0.1:8090").replace(/\/$/, "");
+const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
 let direction = "sat-usd";
 let lastMintQuote = null;
+const pendingOperations = new Map();
 
 const byId = (id) => document.getElementById(id);
 const formatInteger = (value) => new Intl.NumberFormat("pt-BR").format(
@@ -24,6 +25,35 @@ function setMessage(id, text, type = "") {
   element.className = `form-message ${type}`.trim();
 }
 
+function showRefunds(refunds = {}) {
+  const entries = Object.entries(refunds).filter(([, token]) => token);
+  const receipt = byId("refund-receipt");
+  receipt.hidden = entries.length === 0;
+  const outputs = byId("refund-token-value");
+  outputs.replaceChildren();
+  for (const [asset, token] of entries) {
+    const row = document.createElement("div");
+    row.className = "token-output-row";
+    const label = document.createElement("b");
+    label.textContent = asset.toUpperCase();
+    const code = document.createElement("code");
+    code.textContent = token;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Copiar";
+    button.addEventListener("click", () => navigator.clipboard.writeText(token));
+    row.append(label, code, button);
+    outputs.append(row);
+  }
+  return entries.length > 0;
+}
+
+function wireCopyButton(buttonId, sourceId) {
+  byId(buttonId).addEventListener("click", async () => {
+    await navigator.clipboard.writeText(byId(sourceId).textContent);
+  });
+}
+
 async function fetchJson(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" }, ...options
@@ -35,6 +65,29 @@ async function fetchJson(path, options = {}) {
     throw error;
   }
   return body;
+}
+
+async function postOperation(kind, path, payload) {
+  const fingerprint = JSON.stringify(payload);
+  let pending = pendingOperations.get(kind);
+  if (!pending || pending.fingerprint !== fingerprint) {
+    pending = { fingerprint, operationId: crypto.randomUUID() };
+    pendingOperations.set(kind, pending);
+  }
+  try {
+    const result = await fetchJson(path, {
+      method: "POST",
+      body: JSON.stringify({ operation_id: pending.operationId, ...payload })
+    });
+    pendingOperations.delete(kind);
+    return result;
+  } catch (error) {
+    // An HTTP error means the server answered. A network error may mean the
+    // operation committed but its response was lost, so the next click reuses
+    // the same ID and receives the cached bearer tokens.
+    if (error.body) pendingOperations.delete(kind);
+    throw error;
+  }
 }
 
 function render() {
@@ -75,7 +128,13 @@ async function refreshPool() {
   try {
     snapshot = await fetchJson("/api/pool");
     render();
-    setMessage("connection-message", "Backend Nutshell conectado.", "success");
+    setMessage(
+      "connection-message",
+      snapshot.initialized
+        ? "Backend Nutshell conectado."
+        : "Pool vazia: o primeiro depósito SAT + USD define o preço inicial.",
+      "success"
+    );
   } catch (error) {
     setMessage("connection-message", `Backend indisponível: ${error.message}`, "error");
   }
@@ -100,12 +159,9 @@ function wireLiquidity() {
     event.preventDefault();
     setMessage("liquidity-message", "Enviando os dois TokenV4 para o backend…");
     try {
-      const result = await fetchJson("/api/liquidity/deposit", {
-        method: "POST",
-        body: JSON.stringify({
-          sat_token: byId("sat-token-input").value.trim(),
-          usd_token: byId("usd-token-input").value.trim()
-        })
+      const result = await postOperation("deposit", "/api/liquidity/deposit", {
+        sat_token: byId("sat-token-input").value.trim(),
+        usd_token: byId("usd-token-input").value.trim()
       });
       byId("lp-token-value").textContent = result.lp_token;
       byId("token-receipt").hidden = false;
@@ -113,14 +169,9 @@ function wireLiquidity() {
       snapshot = result.pool;
       render();
     } catch (error) {
-      setMessage("liquidity-message", error.body?.refunds ? `${error.message} Refunds disponíveis abaixo.` : error.message, "error");
-      if (error.body?.refunds) byId("refunds-value").textContent = JSON.stringify(error.body.refunds);
+      const refunded = showRefunds(error.body?.refunds);
+      setMessage("liquidity-message", refunded ? `${error.message} Tokens devolvidos abaixo.` : error.message, "error");
     }
-  });
-  byId("copy-lp-token").addEventListener("click", async () => {
-    await navigator.clipboard.writeText(byId("lp-token-value").textContent);
-    byId("copy-lp-token").textContent = "Copiado";
-    setTimeout(() => { byId("copy-lp-token").textContent = "Copiar"; }, 1400);
   });
 }
 
@@ -129,15 +180,17 @@ function wireRedemption() {
     event.preventDefault();
     setMessage("redeem-message", "Resgatando o TokenV4 de LP…");
     try {
-      const result = await fetchJson("/api/liquidity/redeem", {
-        method: "POST", body: JSON.stringify({ lp_token: byId("lp-token-input").value.trim() })
+      const result = await postOperation("redeem", "/api/liquidity/redeem", {
+        lp_token: byId("lp-token-input").value.trim()
       });
-      byId("redeem-output").textContent = `SAT: ${result.tokens.sat}\nUSD: ${result.tokens.usd}`;
+      byId("redeem-sat-token").textContent = result.tokens.sat;
+      byId("redeem-usd-token").textContent = result.tokens.usd;
       setMessage("redeem-message", "Resgate concluído. Guarde os dois tokens.", "success");
       snapshot = result.pool;
       render();
     } catch (error) {
-      setMessage("redeem-message", error.body?.refunds ? `${error.message} LP refund disponível.` : error.message, "error");
+      const refunded = showRefunds(error.body?.refunds);
+      setMessage("redeem-message", refunded ? `${error.message} LP devolvido abaixo.` : error.message, "error");
     }
   });
 }
@@ -154,8 +207,8 @@ function wireTrade() {
     event.preventDefault();
     setMessage("trade-message", "Executando swap contra a pool…");
     try {
-      const result = await fetchJson("/api/swap", {
-        method: "POST", body: JSON.stringify({ direction, token: byId("trade-token-input").value.trim() })
+      const result = await postOperation("swap", "/api/swap", {
+        direction, token: byId("trade-token-input").value.trim()
       });
       byId("trade-output-token").textContent = result.output_token;
       byId("trade-output-amount").textContent = `${formatInteger(result.amount_out)} unidades`;
@@ -163,7 +216,8 @@ function wireTrade() {
       snapshot = result.pool;
       render();
     } catch (error) {
-      setMessage("trade-message", error.body?.refunds ? `${error.message} O token de entrada foi devolvido.` : error.message, "error");
+      const refunded = showRefunds(error.body?.refunds);
+      setMessage("trade-message", refunded ? `${error.message} Token de entrada devolvido abaixo.` : error.message, "error");
     }
   });
 }
@@ -209,5 +263,10 @@ wireTrade();
 wireMint();
 byId("refresh-pool").addEventListener("click", refreshPool);
 byId("refresh-mints").addEventListener("click", checkMints);
+wireCopyButton("copy-lp-token", "lp-token-value");
+wireCopyButton("copy-redeem-sat", "redeem-sat-token");
+wireCopyButton("copy-redeem-usd", "redeem-usd-token");
+wireCopyButton("copy-trade-token", "trade-output-token");
+wireCopyButton("copy-mint-token", "mint-token-output");
 refreshPool();
 checkMints();

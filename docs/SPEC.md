@@ -1,133 +1,84 @@
 # Cashu AMM — especificação da PoC
 
-Status: implementação executável com backend Cashu/Nutshell.
-
-Esta especificação descreve a prova de conceito do Cashu AMM. Ela não define
-um protocolo de produção ou uma DEX trustless. O backend, porém, movimenta
-proofs Cashu reais quando configurado com carteiras e mints do operador.
+Status: implementada e validada localmente com tokens Testnut reais.
 
 ## 1. Objetivo
 
-Demonstrar, no navegador, um pool BTC/USD com curva de produto constante:
+Demonstrar uma pool SAT/USD em Cashu com duas interfaces sobre as mesmas
+reservas:
 
 ```text
-depositar BTC + USD → receber LP shares → trocar contra a pool → resgatar
+liquidez: SAT + USD → LP → SAT + USD pro rata
+trade:     SAT ⇄ USD pela curva x × y = k
 ```
 
-A demo deve tornar visíveis três coisas:
+O operador é custodiante e controla a pool, as wallets de reserva e a mint LP.
+Isso é deliberado para a demo; não é uma DEX trustless.
 
-1. a cotação muda conforme as reservas mudam;
-2. a pool recebe a fee e arredonda em seu favor;
-3. uma posição de liquidez pode ser representada por um bearer receipt.
+## 2. Arquitetura mínima
 
-## 2. Escopo da PoC
+Um container executa dois processos:
 
-Incluído:
+```mermaid
+flowchart LR
+    U["Site / usuário"] -->|"deposit, swap, redeem"| A["API pública :8090"]
+    A --> S["wallet reserva SAT / Testnut"]
+    A --> D["wallet reserva USD / Testnut"]
+    A -->|"somente após depósito válido"| L["mint LP Nutshell / 127.0.0.1:3338"]
+    L --> P["bearer token LP"]
+    S --> M["AMM x · y = k"]
+    D --> M
+```
 
-- dois ativos: BTC e USD;
-- BTC em satoshis;
-- USD em cents, a menor unidade inteira exposta pela mint de teste;
-- pool de dois ativos;
-- `x × y = k`;
-- fee fixa de 1% (`100 bps`);
-- swaps `exact-in`;
-- depósitos proporcionais dos dois ativos;
-- LP shares fungíveis;
-- resgates proporcionais;
-- backend HTTP server-side;
-- proofs Cashu TokenV4 como entrada e saída;
-- três carteiras Nutshell persistentes: SAT, USD e LP;
-- estado da pool persistido no servidor;
-- emissão de cotações de mint para obter tokens Testnet pagando a invoice;
-- consulta de capacidade dos mints antes da operação.
+A mint LP é uma autoridade Cashu privada pertencente à pool. LP é um TokenV4
+Cashu como SAT e USD: tem keyset, blind signature, proofs e proteção contra
+double-spend. O que muda é o ativo subjacente. Um LP representa uma fração de
+dois outros ativos Cashu — as reservas SAT e USD expostas pelo AMM — e não uma
+reserva Lightning própria.
 
-Fora do escopo:
+A mint não guarda uma terceira reserva econômica: apenas assina a quantidade de
+shares calculada pela pool. Para isso, o backend de pagamento da mint LP é o
+`FakeWallet` do Nutshell e auto-liquida quotes internas. Esse é o único mock do
+runtime; os tokens, as assinaturas LP e os dois ativos de reserva são reais em
+testnet.
 
-- pool compartilhada entre navegadores;
-- operação trustless sem operador;
-- HTLC, Nostr, oracle, router multi-pool ou federação;
-- depósito single-sided;
-- StableSwap, Weighted Math ou concentrated liquidity;
-- proof of reserves;
-- governança, recuperação de chaves e tratamento de insolvência.
+Reutilizamos o Nutshell para keysets, blind signatures, DLEQ, proof state e
+proteção contra double-spend. A aplicação implementa somente a contabilidade
+SAT/USD/LP e a curva do AMM.
 
-## 3. Estado inicial e configuração
+## 3. Ativos e estado
 
-A pool começa com tokens Cashu fornecidos pelo operador:
+- SAT: unidade inteira `sat` da Testnut.
+- USD: menor unidade inteira `usd` da Testnut, tratada como centavo na UI.
+- LP: unidade fungível da mint privada da pool.
+- Fee do AMM: `100 bps`, ou 1%.
 
-| Campo | Valor |
-| --- | ---: |
-| Reserva BTC | `1.000.000 sat` |
-| Reserva USD | `50.000 cents` (`$500,00`) |
-| Preço inicial | `USD 50.000 / BTC` |
-| Fee | `1%` |
-| LP supply inicial | `floor(sqrt(1.000.000 × 50.000)) = 223.606 LP` |
-
-O seed é recebido uma vez pelas carteiras Nutshell do backend e deve obedecer
-`shares = floor(sqrt(reserve_sat × reserve_usd))`. Os tokens de seed não ficam
-no navegador. A configuração mínima é:
-
-- `CASHU_AMM_SAT_MINT_URL` e `CASHU_AMM_USD_MINT_URL`;
-- `CASHU_AMM_LP_MINT_URL` e `CASHU_AMM_LP_UNIT`;
-- `CASHU_AMM_SEED_SAT_TOKEN`, `CASHU_AMM_SEED_USD_TOKEN` e
-  `CASHU_AMM_SEED_LP_TOKEN` na primeira inicialização;
-- `CASHU_AMM_DATA_DIR` para os bancos Nutshell e o snapshot da pool.
-
-## 4. Modelo de preço
-
-O preço spot exibido é a razão entre reservas, convertida para BTC inteiro:
+O estado autoritativo é:
 
 ```text
-spot_usd_per_btc = reserve_usd_cents × 1.000.000 / reserve_sat
+reserve_sat, reserve_usd, total_lp
 ```
 
-O invariant de referência é:
+A pool começa vazia. O primeiro depósito define as reservas, o preço e o supply
+inicial:
 
 ```text
-k = reserve_sat × reserve_usd_cents
+total_lp = floor(sqrt(deposit_sat × deposit_usd))
 ```
 
-O invariant não precisa permanecer exatamente igual porque a fee fica dentro
-da pool. Depois de um swap válido, ele não pode diminuir.
+Não existe seed LP nem inventário pré-mintado.
 
-## 5. Swap exact-in
+## 4. Liquidez
 
-Para um input `a`, reserva de entrada `x`, reserva de saída `y` e fee `f`:
+### Primeiro depósito
 
-```text
-BPS = 10.000
-effective = a × (BPS - f)
-amount_out = floor(effective × y / (x × BPS + effective))
-```
+Depois de receber os dois TokenV4, a pool calcula a raiz geométrica, solicita a
+emissão exata à mint LP privada e devolve o TokenV4 LP. Se a emissão falhar, os
+dois ativos são devolvidos quando a compensação é possível.
 
-Na PoC, `f = 100`.
+### Depósitos seguintes
 
-Depois do swap:
-
-```text
-reserve_in  = reserve_in  + amount_in
-reserve_out = reserve_out - amount_out
-```
-
-O swap falha quando:
-
-- o input é zero ou não inteiro;
-- a carteira não possui o input;
-- a reserva de saída é insuficiente;
-- o output arredondado é zero;
-- a operação produziria um estado inválido.
-
-O operador não usa HTLC neste experimento. A execução é uma operação serializada
-no backend; o navegador apenas envia o TokenV4 e exibe a resposta.
-
-## 6. Liquidez e LP shares Cashu
-
-### 6.1 Depósito
-
-O visitante deposita os dois ativos na proporção atual da pool. A interface
-ajusta o segundo valor automaticamente quando um dos inputs muda.
-
-Para reservas `R_sat`, `R_usd`, supply `S` e depósito `D_sat`, `D_usd`:
+Para reservas `R_sat`, `R_usd`, supply `S` e valores recebidos `D_sat`, `D_usd`:
 
 ```text
 shares_sat = floor(D_sat × S / R_sat)
@@ -135,133 +86,141 @@ shares_usd = floor(D_usd × S / R_usd)
 shares     = min(shares_sat, shares_usd)
 ```
 
-As shares são emitidas somente depois de os dois inputs serem aceitos pela
-operação local. Qualquer sobra causada por arredondamento permanece na pool.
+O depósito deve seguir a proporção atual. A PoC aceita desvio de até 1% para
+absorver fees de input Cashu; acima disso, devolve os dois tokens. Quantidades e
+shares sempre arredondam em favor da pool.
 
-### 6.2 Resgate
+### Resgate
 
-Para `L` shares resgatadas:
+Para `L` shares:
 
 ```text
 amount_sat = floor(R_sat × L / S)
 amount_usd = floor(R_usd × L / S)
 ```
 
-O resgate falha se `L > S` ou se o visitante não possui as shares. O saldo de
-shares é reduzido somente junto com a atualização dos dois ativos.
+O valor de uma posição LP é, portanto, sua fração atual dos dois ativos — não um
+preço fixo de LP. Fees acumuladas e mudanças na composição da pool aparecem no
+resgate pro rata.
 
-### 6.3 Token LP
+A API da pool recebe o TokenV4 LP, prepara os dois outputs, invalida as proofs LP
+e só então responde com SAT e USD. Esse endpoint é o melt econômico do LP, mas
+não usa NUT-05: um melt Cashu convencional paga um único payment request e não
+tem um formato para devolver dois TokenV4 de mints/unidades diferentes.
 
-Cada LP share corresponde a uma unidade da carteira de share mint configurada.
-O depósito devolve um TokenV4 dessa mint; o resgate recebe esse TokenV4 no
-backend, invalida as provas recebidas na wallet do operador e emite os dois
-tokens subjacentes.
-O token LP é bearer Cashu real, mas não é prova de solvência independente: a
-solvência depende das reservas das carteiras do operador.
+Ao receber o LP, o Nutshell já gasta as proofs originais do usuário e cria
+proofs de substituição na wallet da pool. `invalidate()` elimina essas proofs de
+substituição localmente. Isso basta para impedir reuso normal nesta PoC privada,
+mas não constitui um burn protocolar verificável nem prova, sozinho, a redução
+das liabilities da mint. A autoridade econômica continua sendo o estado
+`total_lp` da aplicação. Resgates que arredondariam um dos ativos para zero são
+recusados e o LP é devolvido.
 
-## 7. Estado, concorrência e recuperação
+## 5. AMM
 
-O estado econômico da PoC é um único objeto server-side com:
+Para input exato `a`, reserva de entrada `x`, reserva de saída `y` e
+`BPS = 10.000`:
 
 ```text
-pool:    reserve_sat, reserve_usd, shares
-wallet:  três carteiras Nutshell do operador; a carteira do usuário fica fora do servidor
-ledger:  eventos server-side
+effective  = a × (BPS - 100)
+amount_out = floor(effective × y / (x × BPS + effective))
 ```
 
-O snapshot server-side inclui `version: 1` e é gravado por rename atômico.
-Cada operação serializa pelo lock do processo, grava um evento e mantém os
-bancos Nutshell como fonte de verdade dos proofs.
+Depois do swap:
 
-Se o processo cair depois de um split no mint, a operação deve permanecer
-identificável pelo journal e os outputs reservados não podem ser reutilizados.
-O operador precisa reconciliar operações pendentes antes de reabrir a pool;
-isso é a versão PoC do prepare/commit/recover usado pelo Nutshell/Granola.
+```text
+reserve_in  = reserve_in + amount_in
+reserve_out = reserve_out - amount_out
+```
 
-## 8. Arredondamento e tipos
+O 1% não vai para uma conta separada: permanece nas reservas. O swap falha se a
+pool estiver vazia, o input for inválido, o output arredondar para zero ou não
+houver liquidez suficiente.
 
-- toda quantia de settlement é inteira;
-- a matemática usa `BigInt`;
-- output de swap arredonda para baixo;
-- shares emitidas arredondam para baixo;
-- resgates arredondam para baixo;
-- o remainder fica com a pool;
-- valores `Number` aparecem somente para formatação visual e preço exibido.
+O preço exibido é:
 
-## 9. Invariantes da demo
+```text
+usd_per_btc = reserve_usd × 1.000.000 / reserve_sat
+```
 
-Após qualquer operação bem-sucedida:
+Não há oracle: o preço nasce exclusivamente da razão entre as reservas.
 
-- reservas e saldos são não negativos;
-- nenhum output ultrapassa a reserva correspondente;
-- o total de LP contabilizado pela pool não excede o seed e os depósitos aceitos;
-- `pool.shares` diminui somente em resgates;
-- swaps não criam nem destroem LP shares;
-- a fee permanece na pool;
-- o invariant ajustado pela fee não diminui;
-- o ledger contém um registro do evento executado.
+## 6. Cashu e fees da mint
 
-## 10. Testes de aceitação
+Entradas e saídas são TokenV4 reais. Ao receber um token, o backend mede a
+variação do saldo spendable da wallet e contabiliza esse valor líquido. Isso
+mantém o snapshot compatível com as fees de input cobradas pela Testnut.
 
-Os testes matemáticos devem cobrir:
+A fee Cashu não é a fee do AMM:
 
-- raiz quadrada inteira;
-- supply inicial;
-- fee de 1%;
-- output arredondado para baixo;
-- crescimento de `k` após swap;
-- depósito proporcional;
-- resgate proporcional;
-- rejeição de shares acima do supply.
-- rejeição de ativos, direções, inputs e receipts inválidos;
-- atomicidade das operações que falham;
-- mudança do preço após swap;
-- round-trip do estado serializado.
+- fee Cashu: custo da mint para receber proofs;
+- fee AMM: 1% aplicado pela fórmula de swap e retido pela pool.
 
-O teste manual deve demonstrar:
+Quotes pagas são idempotentes: repetir `POST /api/mint` com o mesmo `quote_id`
+devolve o mesmo bearer token, sem emitir valor novamente. Depósito, swap e
+resgate exigem um `operation_id` UUID gerado pelo cliente. Os outputs econômicos
+são persistidos antes do journal ser concluído; repetir o mesmo ID e payload
+devolve exatamente os mesmos bearer tokens sem alterar as reservas outra vez.
+Reusar o ID com outro payload é recusado.
 
-1. obter e pagar uma mint quote de SAT/USD, ou colar tokens Cashu já existentes;
-2. depositar os dois TokenV4 e receber o TokenV4 de LP;
-3. executar BTC → USD;
-4. executar USD → BTC;
-5. observar reservas, preço, fee e invariant mudarem;
-6. resgatar parte das shares;
-7. reiniciar o backend e confirmar que o snapshot e os bancos Nutshell foram
-   reabertos sem perder a pool.
+## 7. Falhas e persistência
 
-## 11. Testnet e integração Cashu
+As mutações usam um lock único, snapshot gravado por rename atômico e journal
+durável.
 
-O painel consulta os endpoints públicos usados no protótipo Granola:
+- input rejeitado encerra o journal sem bloquear restart;
+- falha antes de entregar outputs tenta devolver os ativos recebidos;
+- no resgate, outputs preparados são cancelados no Nutshell antes de devolver o
+  LP;
+- se um output não puder ser cancelado, o LP não é devolvido e a operação fica
+  pendente para impedir crédito duplicado;
+- uma operação pendente bloqueia a inicialização para reconciliação manual do
+  operador.
+- se a resposta HTTP se perder depois do commit, o cliente repete o mesmo
+  `operation_id` e recupera os bearer tokens persistidos.
 
-- `https://testnut.cashu.space`;
-- `https://nofee.testnut.cashu.space`.
+Não existe atomicidade distribuída perfeita entre mints independentes. Para a
+PoC, preparar, cancelar e bloquear em caso ambíguo é a fronteira correta.
 
-O backend usa essas mints apenas quando configuradas explicitamente. A rota de
-mint quote chama `Wallet.request_mint`; depois que o usuário paga a invoice,
-`Wallet.mint` e `serialize_proofs(include_dleq=True)` devolvem um TokenV4.
-Nenhum faucet sintético é usado.
+## 8. HTTP e interface
 
-## 12. Contrato HTTP
+- `GET /api/pool`: reservas, preço, `k`, fee, supply LP e eventos;
+- `POST /api/mint/quote`: cria quote SAT ou USD;
+- `POST /api/mint`: emite o TokenV4 de uma quote paga;
+- `POST /api/liquidity/deposit`: recebe `{operation_id, sat_token, usd_token}` e
+  devolve LP;
+- `POST /api/swap`: recebe `{operation_id, direction, token}` e devolve o outro
+  ativo;
+- `POST /api/liquidity/redeem`: recebe `{operation_id, lp_token}` e devolve SAT
+  + USD;
+- `GET /health`: liveness do backend.
 
-- `GET /api/pool`: reservas, preço, `k`, fee e ledger;
-- `POST /api/liquidity/deposit`: recebe `{sat_token, usd_token}` e devolve
-  `{shares, lp_token}`;
-- `POST /api/swap`: recebe `{direction, token}` e devolve o token da outra
-  carteira;
-- `POST /api/liquidity/redeem`: recebe `{lp_token}` e devolve tokens SAT/USD;
-- `GET /health`: verifica que o processo está vivo.
+O mesmo servidor entrega `index.html`, JavaScript, CSS e API. Não há deploy em
+GitHub Pages nem dependência de `localhost` em um site público.
 
-Falhas depois de receber um token retornam refunds Cashu quando possível e não
-alteram o snapshot econômico. Falhas de compensação ficam como operação
-pendente para reconciliação do operador.
+## 9. Aceitação da demo
 
-## 13. Mapa da implementação
+A implementação é aceita quando:
 
-O núcleo de matemática de referência está em `amm.js`; o backend real está
-em `backend/amm.py`, `backend/service.py`, `backend/nutshell.py`,
-`backend/store.py` e `backend/app.py`. A UI chama o contrato HTTP e não mantém
-reservas autoritativas no `localStorage`.
+1. um único `docker compose up --build` inicia site, API e mint LP;
+2. o primeiro depósito SAT/USD Testnut emite LP real;
+3. swaps SAT→USD e USD→SAT alteram as mesmas reservas;
+4. o resgate do LP devolve os dois ativos pro rata;
+5. a fee é 1% e os arredondamentos favorecem a pool;
+6. restart preserva wallets, mint LP e snapshot no volume;
+7. nenhum bearer token é fabricado no navegador.
 
-`npm test` cobre a UI e a matemática JS. `pytest backend/tests` cobre a
-matemática Python, gateways, refunds, persistência e contrato HTTP. O adapter
-`backend/nutshell.py` é a única camada que conhece a API do Nutshell.
+O script `scripts/smoke-local.py` executa os itens 2–4 e também testa retry de
+mint, depósito, ambos os swaps e resgate sem imprimir os tokens. O comando
+`npm run test:e2e` repete o circuito inteiro pela interface em Chrome headless.
+
+## 10. Fora do escopo
+
+- fundos reais e solvência garantida;
+- operação trustless, federação ou governança;
+- HTLC, Nostr, oracle e roteamento entre pools;
+- depósitos single-sided, StableSwap, weighted ou concentrated liquidity;
+- recuperação automática de toda falha possível;
+- segurança e operação de produção.
+- slippage protection (`minimum_amount_out`), acompanhada na
+  [issue #1](https://github.com/brenorb/cashu-amm/issues/1).

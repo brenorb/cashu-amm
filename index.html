@@ -30,8 +30,8 @@
             e trocar BTC por USD sem order book.
           </p>
           <div class="hero-notice">
-            <strong>PoC custodial.</strong> O backend opera três wallets Nutshell e só aceita
-            TokenV4 reais dos mints configurados.
+            <strong>PoC custodial.</strong> A pool guarda SAT + USD, opera o AMM e
+            controla uma mint LP privada. Só aceita TokenV4 reais.
           </div>
         </div>
 
@@ -92,14 +92,11 @@
 
           <div class="mint-status">
             <div class="mint-title">
-              <span>Mints configurados / referência</span>
+              <span>Mint dos ativos</span>
               <button type="button" id="refresh-mints" class="icon-button" aria-label="Verificar mints novamente">↻</button>
             </div>
             <div class="mint-row" data-mint="https://testnut.cashu.space">
               <i></i><span>Testnut</span><small>verificando…</small>
-            </div>
-            <div class="mint-row" data-mint="https://nofee.testnut.cashu.space">
-              <i></i><span>Testnut nofee</span><small>verificando…</small>
             </div>
           </div>
           <p class="form-message" id="connection-message" role="status"></p>
@@ -121,7 +118,7 @@
                 <p class="eyebrow">PROVIDE LIQUIDITY</p>
                 <h2>Deposite o par.<br />Leve o recibo.</h2>
               </div>
-              <p>Envie um TokenV4 SAT e um TokenV4 USD dos mints configurados. O backend recebe ambos e devolve um TokenV4 LP.</p>
+              <p>Envie TokenV4 SAT + USD na proporção da pool. A mint LP privada só emite as shares depois de ambos entrarem.</p>
             </div>
 
             <form id="liquidity-form" class="operation-form">
@@ -153,7 +150,6 @@
                 <strong>Seu LP token foi emitido</strong>
               </div>
               <code id="lp-token-value"></code>
-              <code id="refunds-value"></code>
               <button type="button" id="copy-lp-token">Copiar</button>
             </div>
 
@@ -164,7 +160,10 @@
                   <span>Token Cashu de LP</span>
                   <div><textarea id="lp-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
                 </label>
-                <div class="redeem-preview" id="redeem-output">Você receberá dois TokenV4 —</div>
+                <div class="redeem-preview" id="redeem-output">
+                  <div class="token-output-row"><b>SAT</b><code id="redeem-sat-token">—</code><button type="button" id="copy-redeem-sat">Copiar</button></div>
+                  <div class="token-output-row"><b>USD</b><code id="redeem-usd-token">—</code><button type="button" id="copy-redeem-usd">Copiar</button></div>
+                </div>
                 <button class="secondary-action" type="submit">Resgatar participação</button>
                 <p class="form-message" id="redeem-message" role="status"></p>
               </form>
@@ -199,7 +198,7 @@
               </div>
 
               <div class="quote-sheet">
-                <div><span>Token de saída</span><strong id="trade-output-token">—</strong></div>
+                <div><span>Token de saída</span><strong id="trade-output-token">—</strong><button type="button" id="copy-trade-token">Copiar</button></div>
                 <div><span>Fee da pool</span><strong>1%</strong></div>
                 <div><span>Estado</span><strong>server-authoritative</strong></div>
               </div>
@@ -211,6 +210,14 @@
             </form>
           </div>
         </section>
+      </section>
+
+      <section class="token-receipt" id="refund-receipt" hidden>
+        <div>
+          <p class="eyebrow">REFUND CASHU</p>
+          <strong>A operação falhou, mas estes tokens foram devolvidos</strong>
+        </div>
+        <div id="refund-token-value"></div>
       </section>
 
       <section class="mint-section">
@@ -232,6 +239,7 @@
           <div><span>Quote id</span><code id="mint-quote-id"></code></div>
           <button class="secondary-action" id="mint-paid" type="button">Já paguei — emitir TokenV4</button>
           <code id="mint-token-output"></code>
+          <button class="secondary-action" id="copy-mint-token" type="button">Copiar TokenV4</button>
         </div>
       </section>
 

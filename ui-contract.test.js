@@ -24,7 +24,12 @@ test("the page exposes Cashu token operations and mint status controls", () => {
     "trade-token-input",
     "lp-token-input",
     "mint-quote-form",
-    "mint-paid"
+    "mint-paid",
+    "copy-lp-token",
+    "copy-redeem-sat",
+    "copy-redeem-usd",
+    "copy-trade-token",
+    "copy-mint-token"
   ]) assert.match(html, new RegExp(`id="${id}"`));
   assert.doesNotMatch(html, /data-faucet=/);
   assert.doesNotMatch(html, /MOCK BEARER RECEIPT/);
@@ -36,4 +41,6 @@ test("the browser client delegates state to the backend API", async () => {
   assert.match(app, /\/api\/liquidity\/deposit/);
   assert.match(app, /\/api\/swap/);
   assert.match(app, /\/api\/liquidity\/redeem/);
+  assert.match(app, /crypto\.randomUUID\(\)/);
+  assert.match(app, /operation_id/);
 });

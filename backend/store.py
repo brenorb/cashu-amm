@@ -8,7 +8,6 @@ from typing import Any
 
 from .amm import PoolState
 
-
 STATE_VERSION = 1
 
 
