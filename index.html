@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
-    <link rel="stylesheet" href="./styles.css?v=20260804-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260804-3" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -26,8 +26,8 @@
           <p class="eyebrow">BTCUSD · CASHU / CONSTANT PRODUCT</p>
           <h1>Buy or sell<br /><em>BTCUSD.</em></h1>
           <p class="lede">
-            A Cashu-native spot market. Paste a testnet token, trade directly
-            against the liquidity curve, and receive the other asset as ecash.
+            A Cashu-native spot market. Mint testnet tokens into the browser
+            wallet, trade against the curve, and keep the output as ecash.
           </p>
           <div class="hero-notice">
             <strong>Custodial PoC.</strong> The operator holds the SAT and USD
@@ -83,33 +83,57 @@
       </section>
 
       <section class="workspace">
-        <aside class="wallet-panel">
+        <aside class="wallet-panel" aria-label="Local test wallet">
           <div class="section-heading compact">
             <div>
-              <p class="eyebrow">TOKEN HANDOFF</p>
-              <h2>Not a wallet.</h2>
+              <p class="eyebrow">BROWSER WALLET</p>
+              <h2>Your Cashu.</h2>
             </div>
-            <span class="stateless-badge">0 balances stored</span>
+            <span class="wallet-badge" id="wallet-token-count">0 tokens</span>
           </div>
-          <p class="panel-note">This site cannot see how much Cashu you own. Tokens stay in your wallet until you paste one into an operation.</p>
+          <p class="panel-note"><strong>Testnet only.</strong> Bearer tokens received here are saved in this browser. Clearing site data removes access to them.</p>
+
+          <button class="wallet-faucet" id="get-demo-funds" type="button">
+            <span>Get liquidity test tokens</span>
+            <small id="demo-pair-amounts">20,001 sat + $10.01</small>
+            <b>↓</b>
+          </button>
 
           <div class="balance-stack">
             <article class="balance-card warm">
-              <span>SAT input</span>
-              <strong id="wallet-sat">Sell BTC</strong>
-              <small>Paste a Cashu SAT bearer token when you execute a sale.</small>
+              <span>Bitcoin</span>
+              <strong id="wallet-sat">0 sat</strong>
+              <small id="wallet-sat-count">0 bearer tokens stored</small>
+              <div class="wallet-card-actions">
+                <button type="button" data-wallet-mint="sat">Mint SAT</button>
+                <button type="button" data-wallet-use="sat" disabled>Sell BTC</button>
+              </div>
             </article>
             <article class="balance-card cool">
-              <span>USD input</span>
-              <strong id="wallet-usd">Buy BTC</strong>
-              <small>Paste a Cashu USD bearer token when you execute a purchase.</small>
+              <span>US dollar</span>
+              <strong id="wallet-usd">$0.00</strong>
+              <small id="wallet-usd-count">0 bearer tokens stored</small>
+              <div class="wallet-card-actions">
+                <button type="button" data-wallet-mint="usd">Mint USD</button>
+                <button type="button" data-wallet-use="usd" disabled>Buy BTC</button>
+              </div>
             </article>
             <article class="balance-card ink">
-              <span>LP output</span>
-              <strong id="wallet-lp">Pool shares</strong>
-              <small id="wallet-share-percent">Adding liquidity returns a redeemable Cashu LP token to you.</small>
+              <span>Pool shares</span>
+              <strong id="wallet-lp">0 LP</strong>
+              <small id="wallet-lp-count">0 bearer tokens stored</small>
+              <div class="wallet-card-actions">
+                <button type="button" data-wallet-liquidity disabled>Add liquidity</button>
+                <button type="button" data-wallet-use="lp" disabled>Redeem</button>
+              </div>
             </article>
           </div>
+
+          <div class="wallet-footer">
+            <span>Balances are locally tracked from tokens created by this demo.</span>
+            <button type="button" id="clear-wallet">Clear test wallet</button>
+          </div>
+          <p class="form-message" id="wallet-message" role="status"></p>
 
           <div class="mint-status">
             <div class="mint-title">
@@ -139,7 +163,7 @@
                 <p class="eyebrow">BTCUSD / EXACT INPUT</p>
                 <h2>Trade against<br />the curve.</h2>
               </div>
-              <p>Choose a side and paste a Cashu token. The server calculates the output from the current reserves.</p>
+              <p>Choose a side, load a token from the browser wallet or paste one manually. The server calculates the output from current reserves.</p>
             </div>
 
             <form id="trade-form" class="operation-form trade-form">
@@ -149,7 +173,7 @@
               </div>
 
               <label class="amount-field trade-amount">
-                <span>Cashu input token</span>
+                <span>Cashu input token <button class="field-action" id="use-wallet-trade" type="button" disabled>Use latest SAT token</button></span>
                 <div><textarea class="token-entry" id="trade-token-input" rows="4" placeholder="Paste a Cashu SAT token"></textarea></div>
               </label>
 
@@ -173,7 +197,7 @@
                 </div>
                 <code id="trade-output-token"></code>
                 <button type="button" id="copy-trade-token">Copy received token</button>
-                <small>This token is the asset you bought. Save it in your Cashu wallet before leaving the page.</small>
+                <small>This token is the asset you bought and was also saved in the browser wallet.</small>
               </div>
 
               <button class="primary-action dark" type="submit">
@@ -189,10 +213,11 @@
                 <p class="eyebrow">PROVIDE LIQUIDITY</p>
                 <h2>Fund both sides.<br />Receive shares.</h2>
               </div>
-              <p>Deposit Cashu SAT and USD in the pool ratio. LP shares are issued only after both tokens are accepted.</p>
+              <p>Load SAT + USD from the browser wallet or paste them manually. LP shares are issued only after both tokens are accepted.</p>
             </div>
 
             <form id="liquidity-form" class="operation-form">
+              <button class="field-action wallet-fill-action" type="button" data-wallet-liquidity disabled>Use latest SAT + USD tokens from wallet</button>
               <label class="amount-field">
                 <span>Cashu SAT token</span>
                 <div><textarea class="token-entry" id="sat-token-input" rows="3" placeholder="Paste a Cashu SAT token"></textarea></div>
@@ -222,11 +247,13 @@
               </div>
               <code id="lp-token-value"></code>
               <button type="button" id="copy-lp-token">Copy LP token</button>
+              <small>The LP token was also saved in the browser wallet.</small>
             </div>
 
             <details class="redeem-drawer">
               <summary>Redeem LP shares <span>pro rata ↘</span></summary>
               <form id="redeem-form">
+                <button class="field-action wallet-fill-action" type="button" data-wallet-use="lp" disabled>Use latest LP token from wallet</button>
                 <label class="amount-field">
                   <span>Cashu LP share token</span>
                   <div><textarea class="token-entry" id="lp-token-input" rows="3" placeholder="Paste your Cashu LP token"></textarea></div>
@@ -286,7 +313,7 @@
             <div><p class="eyebrow">MINT OUTPUT</p><strong>Your test Cashu token is ready</strong></div>
             <code id="mint-token-output"></code>
             <button type="button" id="copy-mint-token">Copy minted token</button>
-            <small>Save this bearer token in your wallet or paste it into a trade.</small>
+            <small>This bearer token was saved in the browser wallet and can be loaded into a trade or liquidity deposit.</small>
           </div>
         </div>
       </section>
@@ -308,6 +335,6 @@
       <span>testnet only · custodial operator</span>
     </footer>
 
-    <script type="module" src="./app.js?v=20260804-2"></script>
+    <script type="module" src="./app.js?v=20260804-3"></script>
   </body>
 </html>

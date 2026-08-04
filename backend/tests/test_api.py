@@ -128,7 +128,7 @@ async def test_frontend_assets_are_not_cached() -> None:
     ) as client:
         responses = [
             await client.get(path)
-            for path in ("/app.js", "/styles.css", "/mints.js")
+            for path in ("/app.js", "/styles.css", "/mints.js", "/wallet.js")
         ]
 
     assert all(response.status_code == 200 for response in responses)

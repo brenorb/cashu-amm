@@ -47,12 +47,20 @@ try {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   const initial = await page.evaluate(async () => (await fetch("/api/pool")).json());
   assert.equal(initial.initialized, false, "browser E2E requires an empty pool");
+  assert.equal(await page.locator("#wallet-sat").textContent(), "0 sat");
+  assert.equal(await page.locator("#wallet-usd").textContent(), "$0.00");
 
-  const satLiquidity = await mint("sat", 20_001);
-  const usdLiquidity = await mint("usd", 1_001);
-  await page.locator("#liquidity-tab").click();
-  await page.locator("#sat-token-input").fill(satLiquidity);
-  await page.locator("#usd-token-input").fill(usdLiquidity);
+  await page.locator("#get-demo-funds").click();
+  await page.waitForFunction(() =>
+    document.querySelector("#wallet-token-count")?.textContent === "2 tokens"
+  );
+  await page.locator('.wallet-panel [data-wallet-liquidity]').click();
+  const satLiquidity = await page.locator("#sat-token-input").inputValue();
+  const usdLiquidity = await page.locator("#usd-token-input").inputValue();
+  assert.ok(satLiquidity.startsWith("cashu"));
+  assert.ok(usdLiquidity.startsWith("cashu"));
+  assert.equal(await page.locator("#sat-token-input").inputValue(), satLiquidity);
+  assert.equal(await page.locator("#usd-token-input").inputValue(), usdLiquidity);
   await page.locator("#liquidity-form button[type=submit]").click();
   await page.waitForFunction(() =>
     document.querySelector("#lp-token-value")?.textContent?.startsWith("cashu")
@@ -70,9 +78,8 @@ try {
   );
 
   const satTrade = await mint("sat", 501);
-  await page.locator("#trade-tab").click();
-  await page.locator('#trade-form [data-direction="sat-usd"]').click();
-  await page.locator("#trade-token-input").fill(satTrade);
+  await page.locator('.wallet-panel [data-wallet-use="sat"]').click();
+  assert.equal(await page.locator("#trade-token-input").inputValue(), satTrade);
   await page.locator("#trade-form button[type=submit]").click();
   await page.waitForFunction(() =>
     document.querySelector("#trade-output-token")?.textContent?.startsWith("cashu")
@@ -81,9 +88,8 @@ try {
 
   const priorTradeToken = await page.locator("#trade-output-token").textContent();
   const usdTrade = await mint("usd", 51);
-  await page.locator("#trade-tab").click();
-  await page.locator('#trade-form [data-direction="usd-sat"]').click();
-  await page.locator("#trade-token-input").fill(usdTrade);
+  await page.locator('.wallet-panel [data-wallet-use="usd"]').click();
+  assert.equal(await page.locator("#trade-token-input").inputValue(), usdTrade);
   await page.locator("#trade-form button[type=submit]").click();
   await page.waitForFunction(
     (previous) => {
@@ -94,9 +100,8 @@ try {
   );
   const usdToSatAmount = `${await page.locator("#trade-output-amount").textContent()} ${await page.locator("#trade-output-unit").textContent()}`;
 
-  await page.locator("#liquidity-tab").click();
-  await page.locator(".redeem-drawer summary").click();
-  await page.locator("#lp-token-input").fill(lpToken);
+  await page.locator('.wallet-panel [data-wallet-use="lp"]').click();
+  assert.equal(await page.locator("#lp-token-input").inputValue(), lpToken);
   await page.locator("#redeem-form button[type=submit]").click();
   await page.waitForFunction(() =>
     ["#redeem-sat-token", "#redeem-usd-token"].every((selector) =>
@@ -106,13 +111,16 @@ try {
 
   const final = await page.evaluate(async () => (await fetch("/api/pool")).json());
   assert.deepEqual(final.pool, { sat: 0, usd: 0, shares: 0 });
+  assert.equal(await page.locator("#wallet-lp").textContent(), "0 LP");
+  assert.notEqual(await page.locator("#wallet-sat").textContent(), "0 sat");
+  assert.notEqual(await page.locator("#wallet-usd").textContent(), "$0.00");
   assert.deepEqual(pageErrors, []);
   await mkdir(dirname(screenshotPath), { recursive: true });
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
   console.log(JSON.stringify({
     result: "ok",
-    flow: ["mint SAT/USD", "deposit", "mint LP", "SAT→USD", "USD→SAT", "redeem"],
+    flow: ["one-click SAT/USD wallet funding", "wallet-funded deposit", "mint LP", "wallet-funded SAT→USD", "wallet-funded USD→SAT", "wallet LP redemption"],
     sat_to_usd: satToUsdAmount,
     usd_to_sat: usdToSatAmount,
     final_pool: final.pool,

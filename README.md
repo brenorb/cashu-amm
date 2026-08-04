@@ -47,10 +47,20 @@ docker compose down
 
 ## Fluxo da demo
 
-1. Em **Obter TokenV4**, gere tokens SAT e USD da Testnut.
-2. Em **Liquidez**, deposite os dois tokens na proporção da pool e guarde o LP.
-3. Em **Trade**, troque SAT por USD ou USD por SAT.
-4. Em **Liquidez → Resgatar**, devolva o LP e receba os dois ativos pro rata.
+1. Clique em **Get liquidity test tokens** para mintar na Testnut um par SAT +
+   USD proporcional à pool. A página salva os outputs automaticamente na
+   carteira testnet do navegador. Os botões **Mint SAT/USD** permitem obter
+   tokens adicionais para trades.
+2. Use **Add liquidity** na carteira para carregar os tokens SAT + USD no
+   depósito e receber um token LP, também salvo automaticamente.
+3. Use **Sell BTC** ou **Buy BTC** na carteira para carregar o token mais recente
+   no trade. O ativo recebido substitui economicamente o token gasto.
+4. Use **Redeem** na carteira para devolver o LP e salvar os dois ativos pro rata.
+
+A carteira é propositalmente mínima: persiste em `localStorage` somente bearer
+tokens cujos valores a própria demo conhece. Ela não consulta uma mint para
+descobrir tokens externos, não faz split/merge e não deve ser usada com fundos
+reais. Limpar os dados do site apaga o acesso aos tokens locais.
 
 O backend contabiliza o valor que realmente entrou na wallet depois das fees de
 input Cashu. Essas fees são da mint e são separadas da taxa de 1% do AMM.

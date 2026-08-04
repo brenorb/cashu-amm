@@ -32,10 +32,15 @@ test("frontend assets use a cache-busting version", () => {
   assert.match(html, /app\.js\?v=\d+-\d+/);
 });
 
-test("the site is explicit that it is not a wallet", () => {
-  assert.match(html, /Not a wallet\./);
-  assert.match(html, /0 balances stored/);
-  assert.match(html, /cannot see how much Cashu you own/);
+test("the site includes an explicit browser-local test wallet", () => {
+  assert.match(html, /BROWSER WALLET/);
+  assert.match(html, /Your Cashu\./);
+  assert.match(html, /Clearing site data removes access/);
+  assert.match(html, /id="wallet-sat"/);
+  assert.match(html, /id="wallet-usd"/);
+  assert.match(html, /id="wallet-lp"/);
+  assert.match(html, /id="get-demo-funds"/);
+  assert.match(html, /data-wallet-liquidity/);
 });
 
 test("native asset selection is replaced with styled controls", () => {
@@ -63,7 +68,10 @@ test("the page exposes Cashu token operations and mint status controls", () => {
     "copy-redeem-sat",
     "copy-redeem-usd",
     "copy-trade-token",
-    "copy-mint-token"
+    "copy-mint-token",
+    "get-demo-funds",
+    "use-wallet-trade",
+    "clear-wallet"
   ]) assert.match(html, new RegExp(`id="${id}"`));
   assert.doesNotMatch(html, /data-faucet=/);
   assert.doesNotMatch(html, /MOCK BEARER RECEIPT/);
@@ -71,7 +79,8 @@ test("the page exposes Cashu token operations and mint status controls", () => {
 
 test("the browser client delegates state to the backend API", async () => {
   const app = await readFile(new URL("./app.js", import.meta.url), "utf8");
-  assert.doesNotMatch(app, /localStorage/);
+  assert.match(app, /createTokenWallet/);
+  assert.match(app, /localStorage/);
   assert.match(app, /\/api\/liquidity\/deposit/);
   assert.match(app, /\/api\/swap/);
   assert.match(app, /\/api\/liquidity\/redeem/);

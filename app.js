@@ -1,4 +1,5 @@
-import { inspectMint } from "./mints.js?v=20260804-2";
+import { inspectMint } from "./mints.js?v=20260804-3";
+import { createTokenWallet } from "./wallet.js?v=20260804-3";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
@@ -6,6 +7,7 @@ let direction = "sat-usd";
 let mintAsset = "sat";
 let lastMintQuote = null;
 const pendingOperations = new Map();
+const wallet = createTokenWallet(window.localStorage);
 
 const byId = (id) => document.getElementById(id);
 const formatInteger = (value) => new Intl.NumberFormat("en-US").format(
@@ -19,6 +21,78 @@ const formatPrice = (value) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", maximumFractionDigits: 2
 }).format(Number(value));
 
+const walletInputAsset = () => direction === "sat-usd" ? "sat" : "usd";
+const tokenCountLabel = (count) => `${count} bearer token${count === 1 ? "" : "s"} stored`;
+
+function demoPairAmounts() {
+  const usdGross = 1_001;
+  const usdAfterMintFees = 998;
+  if (!snapshot?.initialized || !snapshot.pool.usd) return { sat: 20_001, usd: usdGross };
+  const satAfterMintFees = Math.max(
+    1,
+    Math.round(snapshot.pool.sat * usdAfterMintFees / snapshot.pool.usd)
+  );
+  return { sat: satAfterMintFees + 5, usd: usdGross };
+}
+
+function renderWallet() {
+  const sat = wallet.list("sat");
+  const usd = wallet.list("usd");
+  const lp = wallet.list("lp");
+  byId("wallet-sat").textContent = formatSat(wallet.total("sat"));
+  byId("wallet-usd").textContent = formatUsd(wallet.total("usd"));
+  byId("wallet-lp").textContent = `${formatInteger(wallet.total("lp"))} LP`;
+  byId("wallet-sat-count").textContent = tokenCountLabel(sat.length);
+  byId("wallet-usd-count").textContent = tokenCountLabel(usd.length);
+  byId("wallet-lp-count").textContent = tokenCountLabel(lp.length);
+  byId("wallet-token-count").textContent = `${sat.length + usd.length + lp.length} tokens`;
+  const demoPair = demoPairAmounts();
+  byId("demo-pair-amounts").textContent = `${formatInteger(demoPair.sat)} sat + ${formatUsd(demoPair.usd)}`;
+
+  for (const button of document.querySelectorAll('[data-wallet-use="sat"]')) button.disabled = sat.length === 0;
+  for (const button of document.querySelectorAll('[data-wallet-use="usd"]')) button.disabled = usd.length === 0;
+  for (const button of document.querySelectorAll('[data-wallet-use="lp"]')) button.disabled = lp.length === 0;
+  for (const button of document.querySelectorAll("[data-wallet-liquidity]")) {
+    button.disabled = sat.length === 0 || usd.length === 0;
+  }
+  byId("use-wallet-trade").disabled = wallet.list(walletInputAsset()).length === 0;
+}
+
+function storeWalletToken(asset, amount, token) {
+  wallet.add(asset, Number(amount), token);
+  renderWallet();
+}
+
+const pause = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+async function mintDirectlyToWallet(asset, amount) {
+  const quote = await fetchJson("/api/mint/quote", {
+    method: "POST",
+    body: JSON.stringify({ asset, amount })
+  });
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      const result = await fetchJson("/api/mint", {
+        method: "POST",
+        body: JSON.stringify({ asset, amount, quote_id: quote.quote_id })
+      });
+      storeWalletToken(result.asset, result.amount, result.token);
+      return result;
+    } catch (error) {
+      if (!error.message.toLowerCase().includes("not paid")) throw error;
+      await pause(250);
+    }
+  }
+  throw new Error(`${asset.toUpperCase()} test mint did not settle in time`);
+}
+
+function replaceWalletRefund(asset, originalToken, refundToken) {
+  const original = wallet.find(originalToken);
+  if (!original || original.asset !== asset) return;
+  wallet.remove(originalToken);
+  storeWalletToken(asset, original.amount, refundToken);
+}
+
 function setMessage(id, text, type = "") {
   const element = byId(id);
   if (!element) return;
@@ -26,13 +100,14 @@ function setMessage(id, text, type = "") {
   element.className = `form-message ${type}`.trim();
 }
 
-function showRefunds(refunds = {}) {
+function showRefunds(refunds = {}, originals = {}) {
   const entries = Object.entries(refunds).filter(([, token]) => token);
   const receipt = byId("refund-receipt");
   receipt.hidden = entries.length === 0;
   const outputs = byId("refund-token-value");
   outputs.replaceChildren();
   for (const [asset, token] of entries) {
+    replaceWalletRefund(asset, originals[asset], token);
     const row = document.createElement("div");
     row.className = "token-output-row";
     const label = document.createElement("b");
@@ -92,6 +167,7 @@ async function postOperation(kind, path, payload) {
 }
 
 function render() {
+  renderWallet();
   if (!snapshot) return;
   const pool = snapshot.pool;
   const initialized = snapshot.initialized;
@@ -112,10 +188,6 @@ function render() {
     ? formatInteger(BigInt(pool.sat) * BigInt(pool.usd))
     : "Not initialized";
   byId("pool-shares").textContent = `${formatInteger(pool.shares)} LP`;
-  byId("wallet-sat").textContent = "Sell BTC";
-  byId("wallet-usd").textContent = "Buy BTC";
-  byId("wallet-lp").textContent = "Pool shares";
-  byId("wallet-share-percent").textContent = "Adding liquidity returns a redeemable Cashu LP token to you.";
   renderCurve(pool, spot, initialized);
   renderLedger(snapshot.events || []);
 }
@@ -213,18 +285,23 @@ function wireLiquidity() {
   byId("liquidity-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("liquidity-message", "Sending both Cashu tokens to the pool…");
+    const satToken = byId("sat-token-input").value.trim();
+    const usdToken = byId("usd-token-input").value.trim();
     try {
       const result = await postOperation("deposit", "/api/liquidity/deposit", {
-        sat_token: byId("sat-token-input").value.trim(),
-        usd_token: byId("usd-token-input").value.trim()
+        sat_token: satToken,
+        usd_token: usdToken
       });
+      wallet.remove(satToken);
+      wallet.remove(usdToken);
+      storeWalletToken("lp", result.shares, result.lp_token);
       byId("lp-token-value").textContent = result.lp_token;
       byId("token-receipt").hidden = false;
-      setMessage("liquidity-message", `Deposit complete: ${formatInteger(result.shares)} LP shares issued.`, "success");
+      setMessage("liquidity-message", `Deposit complete: ${formatInteger(result.shares)} LP shares saved to this browser.`, "success");
       snapshot = result.pool;
       render();
     } catch (error) {
-      const refunded = showRefunds(error.body?.refunds);
+      const refunded = showRefunds(error.body?.refunds, { sat: satToken, usd: usdToken });
       setMessage("liquidity-message", refunded ? `${error.message} Returned tokens are shown below.` : error.message, "error");
     }
   });
@@ -234,58 +311,74 @@ function wireRedemption() {
   byId("redeem-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("redeem-message", "Redeeming the Cashu LP share token…");
+    const lpToken = byId("lp-token-input").value.trim();
     try {
       const result = await postOperation("redeem", "/api/liquidity/redeem", {
-        lp_token: byId("lp-token-input").value.trim()
+        lp_token: lpToken
       });
+      wallet.remove(lpToken);
+      storeWalletToken("sat", result.amounts.sat, result.tokens.sat);
+      storeWalletToken("usd", result.amounts.usd, result.tokens.usd);
       byId("redeem-sat-token").textContent = result.tokens.sat;
       byId("redeem-usd-token").textContent = result.tokens.usd;
-      setMessage("redeem-message", "Redemption complete. Save both output tokens.", "success");
+      setMessage("redeem-message", "Redemption complete. Both output tokens were saved to this browser.", "success");
       snapshot = result.pool;
       render();
     } catch (error) {
-      const refunded = showRefunds(error.body?.refunds);
+      const refunded = showRefunds(error.body?.refunds, { lp: lpToken });
       setMessage("redeem-message", refunded ? `${error.message} The returned LP token is shown below.` : error.message, "error");
     }
   });
 }
 
+function selectTradeDirection(nextDirection, openTrade = false) {
+  direction = nextDirection;
+  for (const candidate of document.querySelectorAll("[data-direction]")) {
+    candidate.classList.toggle("active", candidate.dataset.direction === direction);
+  }
+  const inputAsset = walletInputAsset();
+  byId("trade-token-input").placeholder = `Paste a Cashu ${inputAsset.toUpperCase()} token`;
+  byId("trade-output-unit").textContent = direction === "sat-usd" ? "USD units" : "sat";
+  byId("trade-form").querySelector(".primary-action span").textContent = direction === "sat-usd"
+    ? "Sell BTC for USD"
+    : "Buy BTC with USD";
+  byId("use-wallet-trade").textContent = `Use latest ${inputAsset.toUpperCase()} token`;
+  renderWallet();
+  if (openTrade) {
+    byId("trade-tab").click();
+    byId("trade-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 function wireTrade() {
   for (const button of document.querySelectorAll("[data-direction]")) {
     button.addEventListener("click", () => {
-      direction = button.dataset.direction;
-      for (const candidate of document.querySelectorAll("[data-direction]")) {
-        candidate.classList.toggle("active", candidate.dataset.direction === direction);
-      }
-      byId("trade-token-input").placeholder = `Paste a Cashu ${direction === "sat-usd" ? "SAT" : "USD"} token`;
-      byId("trade-output-unit").textContent = direction === "sat-usd" ? "USD units" : "sat";
-      byId("trade-form").querySelector(".primary-action span").textContent = direction === "sat-usd"
-        ? "Sell BTC for USD"
-        : "Buy BTC with USD";
-      if (button.hasAttribute("data-open-trade")) {
-        byId("trade-tab").click();
-        byId("trade-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      selectTradeDirection(button.dataset.direction, button.hasAttribute("data-open-trade"));
     });
   }
   byId("trade-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("trade-message", "Executing against the current liquidity curve…");
+    const inputToken = byId("trade-token-input").value.trim();
+    const inputAsset = walletInputAsset();
+    const outputAsset = inputAsset === "sat" ? "usd" : "sat";
     try {
       const result = await postOperation("swap", "/api/swap", {
-        direction, token: byId("trade-token-input").value.trim()
+        direction, token: inputToken
       });
+      wallet.remove(inputToken);
+      storeWalletToken(outputAsset, result.amount_out, result.output_token);
       byId("trade-output-token").textContent = result.output_token;
       byId("trade-output-amount").textContent = formatInteger(result.amount_out);
       byId("trade-token-title").textContent = direction === "sat-usd"
         ? "Your Cashu USD token is ready"
         : "Your Cashu SAT token is ready";
       byId("trade-token-receipt").hidden = false;
-      setMessage("trade-message", `Trade complete: ${formatInteger(result.amount_out)} units received.`, "success");
+      setMessage("trade-message", `Trade complete: ${formatInteger(result.amount_out)} units saved to this browser.`, "success");
       snapshot = result.pool;
       render();
     } catch (error) {
-      const refunded = showRefunds(error.body?.refunds);
+      const refunded = showRefunds(error.body?.refunds, { [inputAsset]: inputToken });
       setMessage("trade-message", refunded ? `${error.message} The returned input token is shown below.` : error.message, "error");
     }
   });
@@ -318,10 +411,84 @@ function wireMint() {
       const result = await fetchJson("/api/mint", {
         method: "POST", body: JSON.stringify({ asset: lastMintQuote.asset, amount: lastMintQuote.amount, quote_id: lastMintQuote.quote_id })
       });
+      storeWalletToken(result.asset, result.amount, result.token);
       byId("mint-token-output").textContent = result.token;
       byId("mint-token-receipt").hidden = false;
-      setMessage("mint-message", "Cashu token minted.", "success");
+      setMessage("mint-message", "Cashu token minted and saved to this browser.", "success");
     } catch (error) { setMessage("mint-message", error.message, "error"); }
+  });
+}
+
+function loadWalletTrade(asset) {
+  const entry = wallet.latest(asset);
+  if (!entry) return;
+  selectTradeDirection(asset === "sat" ? "sat-usd" : "usd-sat", true);
+  byId("trade-token-input").value = entry.token;
+  setMessage("trade-message", `${formatInteger(entry.amount)} ${asset.toUpperCase()} loaded from this browser.`, "success");
+}
+
+function loadWalletLiquidity() {
+  const sat = wallet.latest("sat");
+  const usd = wallet.latest("usd");
+  if (!sat || !usd) return;
+  byId("liquidity-tab").click();
+  byId("sat-token-input").value = sat.token;
+  byId("usd-token-input").value = usd.token;
+  byId("liquidity-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  setMessage("liquidity-message", `${formatSat(sat.amount)} and ${formatUsd(usd.amount)} loaded from this browser.`, "success");
+}
+
+function loadWalletRedemption() {
+  const entry = wallet.latest("lp");
+  if (!entry) return;
+  byId("liquidity-tab").click();
+  const drawer = document.querySelector(".redeem-drawer");
+  drawer.open = true;
+  byId("lp-token-input").value = entry.token;
+  drawer.scrollIntoView({ behavior: "smooth", block: "center" });
+  setMessage("redeem-message", `${formatInteger(entry.amount)} LP loaded from this browser.`, "success");
+}
+
+function openMint(asset) {
+  document.querySelector(`[data-mint-asset="${asset}"]`).click();
+  document.querySelector(".mint-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  byId("mint-amount").focus({ preventScroll: true });
+}
+
+function wireWallet() {
+  byId("get-demo-funds").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const amounts = demoPairAmounts();
+    button.disabled = true;
+    setMessage("wallet-message", "Minting a proportional SAT + USD test pair…");
+    try {
+      await mintDirectlyToWallet("sat", amounts.sat);
+      await mintDirectlyToWallet("usd", amounts.usd);
+      setMessage("wallet-message", "Liquidity test tokens ready. Click Add liquidity.", "success");
+    } catch (error) {
+      setMessage("wallet-message", error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+  for (const button of document.querySelectorAll("[data-wallet-mint]")) {
+    button.addEventListener("click", () => openMint(button.dataset.walletMint));
+  }
+  for (const button of document.querySelectorAll('[data-wallet-use="sat"], [data-wallet-use="usd"]')) {
+    button.addEventListener("click", () => loadWalletTrade(button.dataset.walletUse));
+  }
+  for (const button of document.querySelectorAll('[data-wallet-use="lp"]')) {
+    button.addEventListener("click", loadWalletRedemption);
+  }
+  for (const button of document.querySelectorAll("[data-wallet-liquidity]")) {
+    button.addEventListener("click", loadWalletLiquidity);
+  }
+  byId("use-wallet-trade").addEventListener("click", () => loadWalletTrade(walletInputAsset()));
+  byId("clear-wallet").addEventListener("click", () => {
+    if (!window.confirm("Remove all locally stored testnet bearer tokens from this browser?")) return;
+    wallet.clear();
+    renderWallet();
+    setMessage("wallet-message", "Local test wallet cleared.", "success");
   });
 }
 
@@ -339,6 +506,7 @@ wireLiquidity();
 wireRedemption();
 wireTrade();
 wireMint();
+wireWallet();
 byId("refresh-pool").addEventListener("click", refreshPool);
 byId("refresh-mints").addEventListener("click", checkMints);
 wireCopyButton("copy-lp-token", "lp-token-value");
@@ -346,5 +514,6 @@ wireCopyButton("copy-redeem-sat", "redeem-sat-token");
 wireCopyButton("copy-redeem-usd", "redeem-usd-token");
 wireCopyButton("copy-trade-token", "trade-output-token");
 wireCopyButton("copy-mint-token", "mint-token-output");
+renderWallet();
 refreshPool();
 checkMints();

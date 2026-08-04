@@ -216,4 +216,10 @@ def create_app(service: PoolService | None = None) -> FastAPI:
             site / "mints.js", headers={"Cache-Control": "no-store"}
         )
 
+    @app.get("/wallet.js", include_in_schema=False)
+    async def wallet_javascript() -> FileResponse:
+        return FileResponse(
+            site / "wallet.js", headers={"Cache-Control": "no-store"}
+        )
+
     return app
