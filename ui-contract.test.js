@@ -5,10 +5,26 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
 
 test("the page exposes the two required operations as tabs", () => {
-  assert.match(html, /id="liquidity-tab"[^>]*role="tab"/);
-  assert.match(html, /id="trade-tab"[^>]*role="tab"/);
+  assert.match(html, /id="trade-tab"[^>]*aria-selected="true"/);
+  assert.match(html, /id="liquidity-tab"[^>]*aria-selected="false"/);
   assert.match(html, /aria-controls="liquidity-panel"/);
   assert.match(html, /aria-controls="trade-panel"/);
+  assert.match(html, /id="liquidity-panel"[^>]*hidden/);
+});
+
+test("the default market view has clickable prices and an AMM curve", () => {
+  assert.match(html, /id="sell-price"/);
+  assert.match(html, /id="buy-price"/);
+  assert.match(html, /data-open-trade/);
+  assert.match(html, /id="reserve-point"/);
+  assert.match(html, /BTC RESERVE \(x\)/);
+  assert.match(html, /USD RESERVE \(y\)/);
+});
+
+test("all user-facing copy is English and avoids serialization jargon", () => {
+  assert.match(html, /<html lang="en">/);
+  assert.doesNotMatch(html, /TokenV4/i);
+  assert.doesNotMatch(html, /Liquidez|Obter|Resgatar|Copiar|Você|participação/i);
 });
 
 test("the page exposes Cashu token operations and mint status controls", () => {

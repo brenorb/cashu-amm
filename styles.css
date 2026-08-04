@@ -132,7 +132,7 @@ main { max-width: 1380px; margin: 0 auto; padding: 0 40px 64px; }
   border-right: 1px solid var(--line);
 }
 
-.hero, .hero-copy, .pool-orbit, .workspace, .terminal-card { min-width: 0; }
+.hero, .hero-copy, .curve-panel, .workspace, .terminal-card { min-width: 0; }
 
 .hero-copy {
   padding: 88px 6vw 72px 48px;
@@ -181,80 +181,105 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 
 .hero-notice strong { color: var(--ink); }
 
-.pool-orbit {
+.market-quotes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  max-width: 590px;
+  margin-top: 24px;
+}
+
+.market-quote {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--ink);
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.market-quote:hover { transform: translateY(-3px); }
+.market-quote:disabled { cursor: not-allowed; opacity: 0.48; }
+.market-quote:disabled:hover { transform: none; }
+.market-quote.sell.active { background: var(--orange); }
+.market-quote.buy.active { background: var(--blue); }
+.market-quote span, .market-quote small { display: block; text-transform: uppercase; }
+.market-quote span { font-size: 10px; font-weight: 900; letter-spacing: 0.14em; }
+.market-quote strong {
+  display: block;
+  overflow: hidden;
+  margin: 12px 0 9px;
+  font-family: Baskerville, Georgia, serif;
+  font-size: clamp(24px, 2.5vw, 39px);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  text-overflow: ellipsis;
+}
+.market-quote small { color: var(--ink-soft); font-size: 8px; letter-spacing: 0.08em; }
+
+.curve-panel {
   position: relative;
   min-height: 570px;
   overflow: hidden;
+  padding: 42px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.curve-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background:
-    radial-gradient(circle at 50% 50%, rgba(217, 255, 87, 0.65), transparent 32%),
-    linear-gradient(145deg, rgba(185, 217, 255, 0.55), rgba(255, 92, 53, 0.1));
+    radial-gradient(circle at 72% 24%, rgba(217, 255, 87, 0.16), transparent 31%),
+    linear-gradient(rgba(241, 237, 223, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 237, 223, 0.045) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+  pointer-events: none;
 }
 
-.pool-orbit::before {
-  content: "x · y = k";
-  position: absolute;
-  right: 26px;
-  bottom: 18px;
-  color: rgba(16, 35, 31, 0.3);
-  font-family: Baskerville, Georgia, serif;
-  font-size: 32px;
-  font-style: italic;
+.curve-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid rgba(241, 237, 223, 0.2);
 }
 
-.orbit-line {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border: 1px solid rgba(16, 35, 31, 0.35);
-  border-radius: 50%;
-  transform: translate(-50%, -50%) rotate(-24deg);
+.curve-heading div:last-child { text-align: right; }
+.curve-heading span, .curve-status small {
+  display: block;
+  color: rgba(241, 237, 223, 0.56);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
+.curve-heading strong { display: block; margin-top: 6px; font-family: Baskerville, Georgia, serif; font-size: 29px; font-weight: 400; }
 
-.orbit-a { width: 68%; height: 42%; }
-.orbit-b { width: 44%; height: 70%; transform: translate(-50%, -50%) rotate(34deg); }
+.amm-curve { position: relative; z-index: 1; display: block; width: 100%; margin: 14px auto 0; overflow: visible; }
+.curve-axis { stroke: rgba(241, 237, 223, 0.38); stroke-width: 1; }
+.curve-line { fill: none; stroke: var(--acid); stroke-width: 3; vector-effect: non-scaling-stroke; }
+.curve-area { fill: url("#curve-fill"); }
+.curve-guide { stroke: rgba(185, 217, 255, 0.58); stroke-width: 1; stroke-dasharray: 5 5; }
+.reserve-point { fill: var(--orange); stroke: var(--paper); stroke-width: 3; filter: drop-shadow(0 0 9px rgba(255, 92, 53, 0.72)); }
+.curve-guide[hidden], .reserve-point[hidden] { display: none; }
+.curve-axis-label { fill: rgba(241, 237, 223, 0.55); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
 
-.pool-core {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  display: grid;
-  place-items: center;
-  width: 210px;
-  aspect-ratio: 1;
-  padding: 28px;
-  transform: translate(-50%, -50%);
-  border: 1px solid rgba(16, 35, 31, 0.4);
-  border-radius: 50%;
-  background: rgba(241, 237, 223, 0.9);
-  box-shadow: 0 0 0 14px rgba(241, 237, 223, 0.22), var(--shadow);
-  text-align: center;
+.curve-status {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(241, 237, 223, 0.2);
 }
-
-.pool-core small, .pool-core span { font-size: 9px; letter-spacing: 0.16em; }
-.pool-core strong { font-family: Baskerville, Georgia, serif; font-size: 35px; font-weight: 400; letter-spacing: -0.04em; }
-
-.asset-node {
-  position: absolute;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 90px;
-  aspect-ratio: 1;
-  border: 1px solid var(--ink);
-  border-radius: 50%;
-  box-shadow: var(--shadow);
-  animation: float 5s ease-in-out infinite;
-}
-
-.asset-node span { font-family: Baskerville, Georgia, serif; font-size: 37px; }
-.asset-node small { font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
-.asset-btc { left: 12%; top: 22%; background: var(--orange); }
-.asset-usd { right: 10%; bottom: 19%; background: var(--blue); animation-delay: -2.2s; }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(-12px) rotate(4deg); }
-}
+.curve-status > span { font-family: Baskerville, Georgia, serif; font-size: 17px; }
+.curve-status small { max-width: 180px; line-height: 1.5; text-align: right; }
 
 .ticker {
   display: grid;
@@ -439,7 +464,8 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 .redeem-preview { margin-top: 14px; color: var(--ink-soft); font-size: 12px; }
 
 .direction-switch { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 30px; border: 1px solid var(--ink); }
-.direction-switch button { padding: 12px; border: 0; background: transparent; cursor: pointer; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }
+.direction-switch button { padding: 14px 12px; border: 0; background: transparent; cursor: pointer; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }
+.direction-switch button small { display: block; margin-top: 7px; font-family: Baskerville, Georgia, serif; font-size: 16px; font-weight: 400; letter-spacing: -0.02em; }
 .direction-switch button.active { background: var(--ink); color: var(--paper); }
 .output-field > div { min-height: 92px; justify-content: space-between; }
 .output-field strong { font-family: Baskerville, Georgia, serif; font-size: clamp(38px, 5vw, 65px); font-weight: 400; letter-spacing: -0.045em; }
@@ -477,7 +503,7 @@ footer {
   .site-header, main, footer { padding-left: 20px; padding-right: 20px; }
   .hero, .workspace { grid-template-columns: 1fr; }
   .hero-copy { padding: 72px 28px 60px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .pool-orbit { min-height: 460px; }
+  .curve-panel { min-height: 520px; }
   .ticker { grid-template-columns: repeat(2, 1fr); }
   .ticker div { border-bottom: 1px solid rgba(241, 237, 223, 0.2); }
   .ticker div:last-child { grid-column: 1 / -1; }
@@ -490,9 +516,11 @@ footer {
   main { padding-bottom: 30px; }
   .hero-copy { padding: 56px 20px 48px; }
   h1 { font-size: clamp(43px, 12.4vw, 50px); line-height: 0.94; }
-  .pool-orbit { min-height: 390px; }
-  .pool-core { width: 175px; }
-  .asset-node { width: 72px; }
+  .market-quotes { grid-template-columns: 1fr; }
+  .curve-panel { min-height: 0; padding: 28px 18px; }
+  .curve-heading strong { font-size: 23px; }
+  .curve-status { align-items: start; flex-direction: column; gap: 10px; }
+  .curve-status small { max-width: none; text-align: left; }
   .ticker { grid-template-columns: 1fr 1fr; }
   .ticker div { padding: 15px; }
   .wallet-panel, .tab-panel { padding: 24px 20px; }

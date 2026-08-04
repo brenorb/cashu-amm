@@ -27,9 +27,8 @@ export async function inspectMint(mintUrl, fetchImpl = globalThis.fetch, timeout
     if (!response.ok) return { status: "offline", label: `HTTP ${response.status}` };
     return { status: "online", ...describeMintInfo(await response.json()) };
   } catch {
-    return { status: "offline", label: "indisponível / CORS" };
+    return { status: "offline", label: "unavailable / CORS" };
   } finally {
     clearTimeout(timeout);
   }
 }
-

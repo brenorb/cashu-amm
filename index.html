@@ -1,64 +1,84 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Uma prova de conceito de AMM BTC/USD usando a experiência bearer do Cashu." />
+    <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
     <header class="site-header">
-      <a class="wordmark" href="#top" aria-label="Cashu AMM início">
+      <a class="wordmark" href="#top" aria-label="Cashu AMM home">
         <span class="wordmark-mark">C</span>
         <span>Cashu AMM <small>proof of concept</small></span>
       </a>
       <div class="header-actions">
-        <span class="mode-pill"><i></i> backend Nutshell</span>
-        <button class="text-button" id="refresh-pool" type="button">Atualizar pool</button>
+        <span class="mode-pill"><i></i> Nutshell backend</span>
+        <button class="text-button" id="refresh-pool" type="button">Refresh market</button>
       </div>
     </header>
 
     <main id="top">
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">BTC · USD / CONSTANT PRODUCT</p>
-          <h1>Liquidez que cabe<br />num <em>bearer token.</em></h1>
+          <p class="eyebrow">BTCUSD · CASHU / CONSTANT PRODUCT</p>
+          <h1>Buy or sell<br /><em>BTCUSD.</em></h1>
           <p class="lede">
-            Uma mesa experimental para depositar ecash, receber participação na pool
-            e trocar BTC por USD sem order book.
+            A Cashu-native spot market. Paste a testnet token, trade directly
+            against the liquidity curve, and receive the other asset as ecash.
           </p>
           <div class="hero-notice">
-            <strong>PoC custodial.</strong> A pool guarda SAT + USD, opera o AMM e
-            controla uma mint LP privada. Só aceita TokenV4 reais.
+            <strong>Custodial PoC.</strong> The operator holds the SAT and USD
+            reserves, runs the AMM, and controls the private LP mint. Testnet only.
+          </div>
+          <div class="market-quotes" aria-label="Indicative BTCUSD prices">
+            <button class="market-quote sell active" type="button" data-direction="sat-usd" data-open-trade>
+              <span>Sell BTC</span><strong id="sell-price">—</strong><small>USD per BTC · receive USD</small>
+            </button>
+            <button class="market-quote buy" type="button" data-direction="usd-sat" data-open-trade>
+              <span>Buy BTC</span><strong id="buy-price">—</strong><small>USD per BTC · pay USD</small>
+            </button>
           </div>
         </div>
 
-        <div class="pool-orbit" aria-label="Visualização das reservas BTC e USD">
-          <div class="orbit-line orbit-a"></div>
-          <div class="orbit-line orbit-b"></div>
-          <div class="asset-node asset-btc">
-            <span>₿</span>
-            <small>BTC reserve</small>
+        <div class="curve-panel" aria-label="Constant product liquidity curve">
+          <div class="curve-heading">
+            <div><span>AMM CURVE</span><strong>x · y = k</strong></div>
+            <div><span>MID PRICE</span><strong id="hero-price">—</strong></div>
           </div>
-          <div class="asset-node asset-usd">
-            <span>$</span>
-            <small>USD reserve</small>
-          </div>
-          <div class="pool-core">
-            <small>SPOT</small>
-            <strong id="hero-price">—</strong>
-            <span>USD / BTC</span>
+          <svg class="amm-curve" viewBox="0 0 420 320" role="img" aria-labelledby="curve-title curve-description">
+            <title id="curve-title">BTC and USD constant product curve</title>
+            <desc id="curve-description">As BTC reserves increase, USD reserves decrease along the invariant curve.</desc>
+            <defs>
+              <linearGradient id="curve-fill" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#d9ff57" stop-opacity="0.62" />
+                <stop offset="1" stop-color="#ff5c35" stop-opacity="0.08" />
+              </linearGradient>
+            </defs>
+            <line class="curve-axis" x1="50" y1="262" x2="385" y2="262" />
+            <line class="curve-axis" x1="50" y1="262" x2="50" y2="28" />
+            <path class="curve-area" id="curve-area" />
+            <path class="curve-line" id="curve-line" />
+            <line class="curve-guide" id="curve-guide-x" x1="190" y1="140" x2="190" y2="262" />
+            <line class="curve-guide" id="curve-guide-y" x1="50" y1="140" x2="190" y2="140" />
+            <circle class="reserve-point" id="reserve-point" cx="190" cy="140" r="9" />
+            <text class="curve-axis-label" x="300" y="292">BTC RESERVE (x)</text>
+            <text class="curve-axis-label" x="18" y="136" transform="rotate(-90 18 136)">USD RESERVE (y)</text>
+          </svg>
+          <div class="curve-status">
+            <span id="curve-state">Waiting for the first liquidity deposit</span>
+            <small>Every trade moves the reserve point along the curve.</small>
           </div>
         </div>
       </section>
 
-      <section class="ticker" aria-label="Estado da pool">
-        <div><span>Reserva BTC</span><strong id="pool-sat">—</strong></div>
-        <div><span>Reserva USD</span><strong id="pool-usd">—</strong></div>
-        <div><span>Fee</span><strong>1.00%</strong></div>
-        <div><span>Invariant k</span><strong id="pool-k">—</strong></div>
+      <section class="ticker" aria-label="Pool state">
+        <div><span>BTC reserve</span><strong id="pool-sat">—</strong></div>
+        <div><span>USD reserve</span><strong id="pool-usd">—</strong></div>
+        <div><span>Trading fee</span><strong>1.00%</strong></div>
+        <div><span>Invariant k</span><strong id="pool-k">Not initialized</strong></div>
         <div><span>LP supply</span><strong id="pool-shares">—</strong></div>
       </section>
 
@@ -67,7 +87,7 @@
           <div class="section-heading compact">
             <div>
               <p class="eyebrow">TEST WALLET</p>
-              <h2>Seu bolso</h2>
+              <h2>Your tokens</h2>
             </div>
             <span class="wallet-dot"></span>
           </div>
@@ -75,139 +95,139 @@
           <div class="balance-stack">
             <article class="balance-card warm">
               <span>Bitcoin</span>
-              <strong id="wallet-sat">via token Cashu</strong>
-              <small>cole tokens na aba Liquidez/Trade</small>
+              <strong id="wallet-sat">Cashu token</strong>
+              <small>Paste a SAT token to sell or provide liquidity</small>
             </article>
             <article class="balance-card cool">
-              <span>Dólar</span>
-              <strong id="wallet-usd">via token Cashu</strong>
-              <small>obtenha por mint quote ou outra wallet</small>
+              <span>US dollar</span>
+              <strong id="wallet-usd">Cashu token</strong>
+              <small>Paste a USD token to buy BTC or provide liquidity</small>
             </article>
             <article class="balance-card ink">
-              <span>Participação</span>
-              <strong id="wallet-lp">bearer token</strong>
-              <small id="wallet-share-percent">não custodial no navegador</small>
+              <span>Liquidity shares</span>
+              <strong id="wallet-lp">LP share token</strong>
+              <small id="wallet-share-percent">Your pro-rata claim on the pool</small>
             </article>
           </div>
 
           <div class="mint-status">
             <div class="mint-title">
-              <span>Mint dos ativos</span>
-              <button type="button" id="refresh-mints" class="icon-button" aria-label="Verificar mints novamente">↻</button>
+              <span>Asset mint</span>
+              <button type="button" id="refresh-mints" class="icon-button" aria-label="Check mint again">↻</button>
             </div>
             <div class="mint-row" data-mint="https://testnut.cashu.space">
-              <i></i><span>Testnut</span><small>verificando…</small>
+              <i></i><span>Testnut</span><small>checking…</small>
             </div>
           </div>
           <p class="form-message" id="connection-message" role="status"></p>
         </aside>
 
         <section class="terminal-card">
-          <div class="tabs" role="tablist" aria-label="Operações da pool">
-            <button id="liquidity-tab" role="tab" aria-selected="true" aria-controls="liquidity-panel" type="button">
-              <span>01</span> Liquidez
+          <div class="tabs" role="tablist" aria-label="Market operations">
+            <button id="trade-tab" role="tab" aria-selected="true" aria-controls="trade-panel" type="button">
+              <span>01</span> Buy / Sell
             </button>
-            <button id="trade-tab" role="tab" aria-selected="false" aria-controls="trade-panel" type="button">
-              <span>02</span> Trade
+            <button id="liquidity-tab" role="tab" aria-selected="false" aria-controls="liquidity-panel" type="button">
+              <span>02</span> Liquidity pool
             </button>
           </div>
 
-          <div class="tab-panel active" id="liquidity-panel" role="tabpanel" aria-labelledby="liquidity-tab">
+          <div class="tab-panel active" id="trade-panel" role="tabpanel" aria-labelledby="trade-tab">
+            <div class="panel-intro">
+              <div>
+                <p class="eyebrow">BTCUSD / EXACT INPUT</p>
+                <h2>Trade against<br />the curve.</h2>
+              </div>
+              <p>Choose a side and paste a Cashu token. The server calculates the output from the current reserves.</p>
+            </div>
+
+            <form id="trade-form" class="operation-form trade-form">
+              <div class="direction-switch" role="group" aria-label="Trade side">
+                <button class="active" type="button" data-direction="sat-usd">Sell BTC <small id="trade-sell-price">—</small></button>
+                <button type="button" data-direction="usd-sat">Buy BTC <small id="trade-buy-price">—</small></button>
+              </div>
+
+              <label class="amount-field trade-amount">
+                <span>Cashu input token</span>
+                <div><textarea id="trade-token-input" rows="4" placeholder="Paste a Cashu SAT token"></textarea></div>
+              </label>
+
+              <div class="trade-arrow" aria-hidden="true">↓</div>
+
+              <div class="output-field">
+                <span>You receive</span>
+                <div><strong id="trade-output-amount">—</strong><b id="trade-output-unit">USD units</b></div>
+              </div>
+
+              <div class="quote-sheet">
+                <div><span>Output token</span><strong id="trade-output-token">—</strong><button type="button" id="copy-trade-token">Copy</button></div>
+                <div><span>Pool fee</span><strong>1%</strong></div>
+                <div><span>Execution</span><strong>Current pool state</strong></div>
+              </div>
+
+              <button class="primary-action dark" type="submit">
+                <span>Execute trade</span><b>↗</b>
+              </button>
+              <p class="form-message" id="trade-message" role="status"></p>
+            </form>
+          </div>
+
+          <div class="tab-panel" id="liquidity-panel" role="tabpanel" aria-labelledby="liquidity-tab" hidden>
             <div class="panel-intro">
               <div>
                 <p class="eyebrow">PROVIDE LIQUIDITY</p>
-                <h2>Deposite o par.<br />Leve o recibo.</h2>
+                <h2>Fund both sides.<br />Receive shares.</h2>
               </div>
-              <p>Envie TokenV4 SAT + USD na proporção da pool. A mint LP privada só emite as shares depois de ambos entrarem.</p>
+              <p>Deposit Cashu SAT and USD in the pool ratio. LP shares are issued only after both tokens are accepted.</p>
             </div>
 
             <form id="liquidity-form" class="operation-form">
               <label class="amount-field">
-                <span>Token Cashu de SAT</span>
+                <span>Cashu SAT token</span>
                 <div><textarea id="sat-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
               </label>
               <div class="pair-link" aria-hidden="true">+</div>
               <label class="amount-field">
-                <span>Token Cashu de USD</span>
+                <span>Cashu USD token</span>
                 <div><textarea id="usd-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
               </label>
 
               <div class="quote-sheet">
-                <div><span>Você recebe</span><strong>TokenV4 LP</strong></div>
-                <div><span>Modelo</span><strong>Constant product</strong></div>
-                <div><span>Fee</span><strong>1%</strong></div>
+                <div><span>You receive</span><strong>Cashu LP share token</strong></div>
+                <div><span>Model</span><strong>Constant product</strong></div>
+                <div><span>Trading fee</span><strong>1%</strong></div>
               </div>
 
               <button class="primary-action" type="submit">
-                <span>Depositar & emitir LP token</span><b>↗</b>
+                <span>Deposit and issue LP shares</span><b>↗</b>
               </button>
               <p class="form-message" id="liquidity-message" role="status"></p>
             </form>
 
             <div class="token-receipt" id="token-receipt" hidden>
               <div>
-                <p class="eyebrow">CASHU BEARER RECEIPT</p>
-                <strong>Seu LP token foi emitido</strong>
+                <p class="eyebrow">CASHU LP SHARES</p>
+                <strong>Your pool share token is ready</strong>
               </div>
               <code id="lp-token-value"></code>
-              <button type="button" id="copy-lp-token">Copiar</button>
+              <button type="button" id="copy-lp-token">Copy</button>
             </div>
 
             <details class="redeem-drawer">
-              <summary>Resgatar LP shares <span>pro rata ↘</span></summary>
+              <summary>Redeem LP shares <span>pro rata ↘</span></summary>
               <form id="redeem-form">
                 <label class="amount-field">
-                  <span>Token Cashu de LP</span>
+                  <span>Cashu LP share token</span>
                   <div><textarea id="lp-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
                 </label>
                 <div class="redeem-preview" id="redeem-output">
-                  <div class="token-output-row"><b>SAT</b><code id="redeem-sat-token">—</code><button type="button" id="copy-redeem-sat">Copiar</button></div>
-                  <div class="token-output-row"><b>USD</b><code id="redeem-usd-token">—</code><button type="button" id="copy-redeem-usd">Copiar</button></div>
+                  <div class="token-output-row"><b>SAT</b><code id="redeem-sat-token">—</code><button type="button" id="copy-redeem-sat">Copy</button></div>
+                  <div class="token-output-row"><b>USD</b><code id="redeem-usd-token">—</code><button type="button" id="copy-redeem-usd">Copy</button></div>
                 </div>
-                <button class="secondary-action" type="submit">Resgatar participação</button>
+                <button class="secondary-action" type="submit">Redeem pool shares</button>
                 <p class="form-message" id="redeem-message" role="status"></p>
               </form>
             </details>
-          </div>
-
-          <div class="tab-panel" id="trade-panel" role="tabpanel" aria-labelledby="trade-tab" hidden>
-            <div class="panel-intro">
-              <div>
-                <p class="eyebrow">SWAP EXACT-IN</p>
-                <h2>Troque contra<br />a curva.</h2>
-              </div>
-              <p>Escolha a direção e cole o TokenV4 de entrada. A cotação e o output são calculados pelo backend.</p>
-            </div>
-
-            <form id="trade-form" class="operation-form trade-form">
-              <div class="direction-switch" role="group" aria-label="Direção do trade">
-                <button class="active" type="button" data-direction="sat-usd">BTC → USD</button>
-                <button type="button" data-direction="usd-sat">USD → BTC</button>
-              </div>
-
-              <label class="amount-field trade-amount">
-                <span>Token Cashu de entrada</span>
-                <div><textarea id="trade-token-input" rows="4" placeholder="Cole aqui o TokenV4 SAT"></textarea></div>
-              </label>
-
-              <div class="trade-arrow" aria-hidden="true">↓</div>
-
-              <div class="output-field">
-                <span>Você recebe</span>
-                <div><strong id="trade-output-amount">—</strong><b>output</b></div>
-              </div>
-
-              <div class="quote-sheet">
-                <div><span>Token de saída</span><strong id="trade-output-token">—</strong><button type="button" id="copy-trade-token">Copiar</button></div>
-                <div><span>Fee da pool</span><strong>1%</strong></div>
-                <div><span>Estado</span><strong>server-authoritative</strong></div>
-              </div>
-
-              <button class="primary-action dark" type="submit">
-                <span>Executar swap</span><b>↗</b>
-              </button>
-              <p class="form-message" id="trade-message" role="status"></p>
-            </form>
           </div>
         </section>
       </section>
@@ -215,7 +235,7 @@
       <section class="token-receipt" id="refund-receipt" hidden>
         <div>
           <p class="eyebrow">REFUND CASHU</p>
-          <strong>A operação falhou, mas estes tokens foram devolvidos</strong>
+          <strong>The operation failed, but these tokens were returned</strong>
         </div>
         <div id="refund-token-value"></div>
       </section>
@@ -224,22 +244,22 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">TESTNET MINT</p>
-            <h2>Obter TokenV4</h2>
+            <h2>Mint test Cashu</h2>
           </div>
-          <p>O backend pede a quote na mint Nutshell configurada. Pague a invoice fora desta página.</p>
+          <p>Cashu issuance starts by funding a mint quote. Testnut uses a test Lightning invoice and normally settles it automatically.</p>
         </div>
         <form id="mint-quote-form" class="operation-form">
-          <label class="amount-field"><span>Ativo</span><div><select id="mint-asset"><option value="sat">SAT</option><option value="usd">USD</option></select></div></label>
-          <label class="amount-field"><span>Quantidade mínima</span><div><input id="mint-amount" type="number" min="1" value="1000" /></div></label>
-          <button class="primary-action" type="submit"><span>Gerar invoice</span><b>↗</b></button>
+          <label class="amount-field"><span>Asset</span><div><select id="mint-asset"><option value="sat">SAT</option><option value="usd">USD</option></select></div></label>
+          <label class="amount-field"><span>Amount</span><div><input id="mint-amount" type="number" min="1" value="1000" /></div></label>
+          <button class="primary-action" type="submit"><span>Create test mint quote</span><b>↗</b></button>
           <p class="form-message" id="mint-message" role="status"></p>
         </form>
         <div class="quote-sheet" id="mint-pay-step" hidden>
-          <div><span>Invoice Lightning</span><code id="mint-invoice"></code></div>
-          <div><span>Quote id</span><code id="mint-quote-id"></code></div>
-          <button class="secondary-action" id="mint-paid" type="button">Já paguei — emitir TokenV4</button>
+          <div><span>Test Lightning invoice</span><code id="mint-invoice"></code></div>
+          <div><span>Mint reference</span><code id="mint-quote-id"></code></div>
+          <button class="secondary-action" id="mint-paid" type="button">Invoice settled — mint Cashu token</button>
           <code id="mint-token-output"></code>
-          <button class="secondary-action" id="copy-mint-token" type="button">Copiar TokenV4</button>
+          <button class="secondary-action" id="copy-mint-token" type="button">Copy Cashu token</button>
         </div>
       </section>
 
@@ -247,17 +267,17 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">LOCAL EVENT LOG</p>
-            <h2>O que aconteceu</h2>
+            <h2>Market activity</h2>
           </div>
-          <p>Ledger server-side retornado pelo backend Nutshell.</p>
+          <p>Server-side event log returned by the Nutshell backend.</p>
         </div>
         <div class="ledger" id="activity-ledger"></div>
       </section>
     </main>
 
     <footer>
-      <span>Cashu AMM / experimental desk</span>
-      <span>testnet only · operador custodial</span>
+      <span>Cashu AMM / experimental market</span>
+      <span>testnet only · custodial operator</span>
     </footer>
 
     <script type="module" src="./app.js"></script>

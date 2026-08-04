@@ -50,6 +50,7 @@ try {
 
   const satLiquidity = await mint("sat", 20_001);
   const usdLiquidity = await mint("usd", 1_001);
+  await page.locator("#liquidity-tab").click();
   await page.locator("#sat-token-input").fill(satLiquidity);
   await page.locator("#usd-token-input").fill(usdLiquidity);
   await page.locator("#liquidity-form button[type=submit]").click();
@@ -58,21 +59,30 @@ try {
   );
   const lpToken = await page.locator("#lp-token-value").textContent();
   assert.ok(lpToken?.startsWith("cashu"));
+  const sellPrice = await page.locator("#sell-price").textContent();
+  const buyPrice = await page.locator("#buy-price").textContent();
+  assert.notEqual(sellPrice, "—");
+  assert.notEqual(buyPrice, "—");
+
+  await page.locator(".market-quote.buy").click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-direction="usd-sat"]')?.classList.contains("active")
+  );
 
   const satTrade = await mint("sat", 501);
   await page.locator("#trade-tab").click();
-  await page.locator('[data-direction="sat-usd"]').click();
+  await page.locator('#trade-form [data-direction="sat-usd"]').click();
   await page.locator("#trade-token-input").fill(satTrade);
   await page.locator("#trade-form button[type=submit]").click();
   await page.waitForFunction(() =>
     document.querySelector("#trade-output-token")?.textContent?.startsWith("cashu")
   );
-  const satToUsdAmount = await page.locator("#trade-output-amount").textContent();
+  const satToUsdAmount = `${await page.locator("#trade-output-amount").textContent()} ${await page.locator("#trade-output-unit").textContent()}`;
 
   const priorTradeToken = await page.locator("#trade-output-token").textContent();
   const usdTrade = await mint("usd", 51);
   await page.locator("#trade-tab").click();
-  await page.locator('[data-direction="usd-sat"]').click();
+  await page.locator('#trade-form [data-direction="usd-sat"]').click();
   await page.locator("#trade-token-input").fill(usdTrade);
   await page.locator("#trade-form button[type=submit]").click();
   await page.waitForFunction(
@@ -82,7 +92,7 @@ try {
     },
     priorTradeToken
   );
-  const usdToSatAmount = await page.locator("#trade-output-amount").textContent();
+  const usdToSatAmount = `${await page.locator("#trade-output-amount").textContent()} ${await page.locator("#trade-output-unit").textContent()}`;
 
   await page.locator("#liquidity-tab").click();
   await page.locator(".redeem-drawer summary").click();

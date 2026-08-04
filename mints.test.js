@@ -50,6 +50,5 @@ test("mint inspection reports HTTP and network failures without throwing", async
   const networkFailure = await inspectMint("https://mint.example", async () => {
     throw new Error("offline");
   });
-  assert.deepEqual(networkFailure, { status: "offline", label: "indisponível / CORS" });
+  assert.deepEqual(networkFailure, { status: "offline", label: "unavailable / CORS" });
 });
-
