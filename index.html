@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
-    <link rel="stylesheet" href="./styles.css?v=20260804-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260804-2" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -86,27 +86,28 @@
         <aside class="wallet-panel">
           <div class="section-heading compact">
             <div>
-              <p class="eyebrow">TEST WALLET</p>
-              <h2>Your tokens</h2>
+              <p class="eyebrow">TOKEN HANDOFF</p>
+              <h2>Not a wallet.</h2>
             </div>
-            <span class="wallet-dot"></span>
+            <span class="stateless-badge">0 balances stored</span>
           </div>
+          <p class="panel-note">This site cannot see how much Cashu you own. Tokens stay in your wallet until you paste one into an operation.</p>
 
           <div class="balance-stack">
             <article class="balance-card warm">
-              <span>Bitcoin</span>
-              <strong id="wallet-sat">Cashu token</strong>
-              <small>Paste a SAT token to sell or provide liquidity</small>
+              <span>SAT input</span>
+              <strong id="wallet-sat">Sell BTC</strong>
+              <small>Paste a Cashu SAT bearer token when you execute a sale.</small>
             </article>
             <article class="balance-card cool">
-              <span>US dollar</span>
-              <strong id="wallet-usd">Cashu token</strong>
-              <small>Paste a USD token to buy BTC or provide liquidity</small>
+              <span>USD input</span>
+              <strong id="wallet-usd">Buy BTC</strong>
+              <small>Paste a Cashu USD bearer token when you execute a purchase.</small>
             </article>
             <article class="balance-card ink">
-              <span>Liquidity shares</span>
-              <strong id="wallet-lp">LP share token</strong>
-              <small id="wallet-share-percent">Your pro-rata claim on the pool</small>
+              <span>LP output</span>
+              <strong id="wallet-lp">Pool shares</strong>
+              <small id="wallet-share-percent">Adding liquidity returns a redeemable Cashu LP token to you.</small>
             </article>
           </div>
 
@@ -149,7 +150,7 @@
 
               <label class="amount-field trade-amount">
                 <span>Cashu input token</span>
-                <div><textarea id="trade-token-input" rows="4" placeholder="Paste a Cashu SAT token"></textarea></div>
+                <div><textarea class="token-entry" id="trade-token-input" rows="4" placeholder="Paste a Cashu SAT token"></textarea></div>
               </label>
 
               <div class="trade-arrow" aria-hidden="true">↓</div>
@@ -160,9 +161,19 @@
               </div>
 
               <div class="quote-sheet">
-                <div><span>Output token</span><strong id="trade-output-token">—</strong><button type="button" id="copy-trade-token">Copy</button></div>
+                <div><span>Output format</span><strong>Cashu bearer token</strong></div>
                 <div><span>Pool fee</span><strong>1%</strong></div>
                 <div><span>Execution</span><strong>Current pool state</strong></div>
+              </div>
+
+              <div class="token-receipt" id="trade-token-receipt" hidden>
+                <div>
+                  <p class="eyebrow">TRADE OUTPUT</p>
+                  <strong id="trade-token-title">Your Cashu token is ready</strong>
+                </div>
+                <code id="trade-output-token"></code>
+                <button type="button" id="copy-trade-token">Copy received token</button>
+                <small>This token is the asset you bought. Save it in your Cashu wallet before leaving the page.</small>
               </div>
 
               <button class="primary-action dark" type="submit">
@@ -184,12 +195,12 @@
             <form id="liquidity-form" class="operation-form">
               <label class="amount-field">
                 <span>Cashu SAT token</span>
-                <div><textarea id="sat-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
+                <div><textarea class="token-entry" id="sat-token-input" rows="3" placeholder="Paste a Cashu SAT token"></textarea></div>
               </label>
               <div class="pair-link" aria-hidden="true">+</div>
               <label class="amount-field">
                 <span>Cashu USD token</span>
-                <div><textarea id="usd-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
+                <div><textarea class="token-entry" id="usd-token-input" rows="3" placeholder="Paste a Cashu USD token"></textarea></div>
               </label>
 
               <div class="quote-sheet">
@@ -210,7 +221,7 @@
                 <strong>Your pool share token is ready</strong>
               </div>
               <code id="lp-token-value"></code>
-              <button type="button" id="copy-lp-token">Copy</button>
+              <button type="button" id="copy-lp-token">Copy LP token</button>
             </div>
 
             <details class="redeem-drawer">
@@ -218,11 +229,11 @@
               <form id="redeem-form">
                 <label class="amount-field">
                   <span>Cashu LP share token</span>
-                  <div><textarea id="lp-token-input" rows="3" placeholder="cashuA… / cashuB…"></textarea></div>
+                  <div><textarea class="token-entry" id="lp-token-input" rows="3" placeholder="Paste your Cashu LP token"></textarea></div>
                 </label>
                 <div class="redeem-preview" id="redeem-output">
-                  <div class="token-output-row"><b>SAT</b><code id="redeem-sat-token">—</code><button type="button" id="copy-redeem-sat">Copy</button></div>
-                  <div class="token-output-row"><b>USD</b><code id="redeem-usd-token">—</code><button type="button" id="copy-redeem-usd">Copy</button></div>
+                  <div class="token-output-row"><b>SAT</b><code id="redeem-sat-token">—</code><button type="button" id="copy-redeem-sat">Copy SAT token</button></div>
+                  <div class="token-output-row"><b>USD</b><code id="redeem-usd-token">—</code><button type="button" id="copy-redeem-usd">Copy USD token</button></div>
                 </div>
                 <button class="secondary-action" type="submit">Redeem pool shares</button>
                 <p class="form-message" id="redeem-message" role="status"></p>
@@ -248,18 +259,35 @@
           </div>
           <p>Cashu issuance starts by funding a mint quote. Testnut uses a test Lightning invoice and normally settles it automatically.</p>
         </div>
-        <form id="mint-quote-form" class="operation-form">
-          <label class="amount-field"><span>Asset</span><div><select id="mint-asset"><option value="sat">SAT</option><option value="usd">USD</option></select></div></label>
+        <form id="mint-quote-form" class="operation-form mint-form">
+          <fieldset class="mint-asset-field">
+            <legend>Asset</legend>
+            <div class="asset-switch" id="mint-asset" role="group" aria-label="Cashu asset">
+              <button class="active" type="button" data-mint-asset="sat">SAT <small>Bitcoin</small></button>
+              <button type="button" data-mint-asset="usd">USD <small>Test dollars</small></button>
+            </div>
+          </fieldset>
           <label class="amount-field"><span>Amount</span><div><input id="mint-amount" type="number" min="1" value="1000" /></div></label>
           <button class="primary-action" type="submit"><span>Create test mint quote</span><b>↗</b></button>
           <p class="form-message" id="mint-message" role="status"></p>
         </form>
-        <div class="quote-sheet" id="mint-pay-step" hidden>
-          <div><span>Test Lightning invoice</span><code id="mint-invoice"></code></div>
-          <div><span>Mint reference</span><code id="mint-quote-id"></code></div>
-          <button class="secondary-action" id="mint-paid" type="button">Invoice settled — mint Cashu token</button>
-          <code id="mint-token-output"></code>
-          <button class="secondary-action" id="copy-mint-token" type="button">Copy Cashu token</button>
+        <div class="mint-settlement" id="mint-pay-step" hidden>
+          <div class="mint-step-heading">
+            <p class="eyebrow">STEP 2 / FUND THE MINT</p>
+            <strong>Testnut created a test Lightning invoice.</strong>
+            <small>The invoice funds Cashu issuance; the AMM itself trades Cashu tokens, not Lightning payments.</small>
+          </div>
+          <div class="mint-details">
+            <div><span>Test invoice</span><code id="mint-invoice"></code></div>
+            <div><span>Mint reference</span><code id="mint-quote-id"></code></div>
+          </div>
+          <button class="secondary-action" id="mint-paid" type="button">Check payment and mint Cashu</button>
+          <div class="token-receipt" id="mint-token-receipt" hidden>
+            <div><p class="eyebrow">MINT OUTPUT</p><strong>Your test Cashu token is ready</strong></div>
+            <code id="mint-token-output"></code>
+            <button type="button" id="copy-mint-token">Copy minted token</button>
+            <small>Save this bearer token in your wallet or paste it into a trade.</small>
+          </div>
         </div>
       </section>
 
@@ -280,6 +308,6 @@
       <span>testnet only · custodial operator</span>
     </footer>
 
-    <script type="module" src="./app.js?v=20260804-1"></script>
+    <script type="module" src="./app.js?v=20260804-2"></script>
   </body>
 </html>

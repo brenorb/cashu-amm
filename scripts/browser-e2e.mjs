@@ -23,7 +23,7 @@ page.on("pageerror", (error) => pageErrors.push(error.message));
 async function mint(asset, amount) {
   const priorQuote = await page.locator("#mint-quote-id").textContent();
   const priorToken = await page.locator("#mint-token-output").textContent();
-  await page.locator("#mint-asset").selectOption(asset);
+  await page.locator(`[data-mint-asset="${asset}"]`).click();
   await page.locator("#mint-amount").fill(String(amount));
   await page.locator("#mint-quote-form button[type=submit]").click();
   await page.waitForFunction(

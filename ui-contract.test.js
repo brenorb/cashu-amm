@@ -32,6 +32,19 @@ test("frontend assets use a cache-busting version", () => {
   assert.match(html, /app\.js\?v=\d+-\d+/);
 });
 
+test("the site is explicit that it is not a wallet", () => {
+  assert.match(html, /Not a wallet\./);
+  assert.match(html, /0 balances stored/);
+  assert.match(html, /cannot see how much Cashu you own/);
+});
+
+test("native asset selection is replaced with styled controls", () => {
+  assert.doesNotMatch(html, /<select/);
+  assert.match(html, /data-mint-asset="sat"/);
+  assert.match(html, /data-mint-asset="usd"/);
+  assert.match(html, /class="token-entry"/);
+});
+
 test("the page exposes Cashu token operations and mint status controls", () => {
   for (const id of [
     "refresh-pool",

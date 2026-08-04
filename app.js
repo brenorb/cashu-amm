@@ -1,8 +1,9 @@
-import { inspectMint } from "./mints.js?v=20260804-1";
+import { inspectMint } from "./mints.js?v=20260804-2";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
 let direction = "sat-usd";
+let mintAsset = "sat";
 let lastMintQuote = null;
 const pendingOperations = new Map();
 
@@ -111,10 +112,10 @@ function render() {
     ? formatInteger(BigInt(pool.sat) * BigInt(pool.usd))
     : "Not initialized";
   byId("pool-shares").textContent = `${formatInteger(pool.shares)} LP`;
-  byId("wallet-sat").textContent = "Cashu token";
-  byId("wallet-usd").textContent = "Cashu token";
-  byId("wallet-lp").textContent = "LP share token";
-  byId("wallet-share-percent").textContent = "Your pro-rata claim on the pool";
+  byId("wallet-sat").textContent = "Sell BTC";
+  byId("wallet-usd").textContent = "Buy BTC";
+  byId("wallet-lp").textContent = "Pool shares";
+  byId("wallet-share-percent").textContent = "Adding liquidity returns a redeemable Cashu LP token to you.";
   renderCurve(pool, spot, initialized);
   renderLedger(snapshot.events || []);
 }
@@ -276,6 +277,10 @@ function wireTrade() {
       });
       byId("trade-output-token").textContent = result.output_token;
       byId("trade-output-amount").textContent = formatInteger(result.amount_out);
+      byId("trade-token-title").textContent = direction === "sat-usd"
+        ? "Your Cashu USD token is ready"
+        : "Your Cashu SAT token is ready";
+      byId("trade-token-receipt").hidden = false;
       setMessage("trade-message", `Trade complete: ${formatInteger(result.amount_out)} units received.`, "success");
       snapshot = result.pool;
       render();
@@ -287,11 +292,19 @@ function wireTrade() {
 }
 
 function wireMint() {
+  for (const button of document.querySelectorAll("[data-mint-asset]")) {
+    button.addEventListener("click", () => {
+      mintAsset = button.dataset.mintAsset;
+      for (const candidate of document.querySelectorAll("[data-mint-asset]")) {
+        candidate.classList.toggle("active", candidate === button);
+      }
+    });
+  }
   byId("mint-quote-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
       lastMintQuote = await fetchJson("/api/mint/quote", {
-        method: "POST", body: JSON.stringify({ asset: byId("mint-asset").value, amount: Number(byId("mint-amount").value) })
+        method: "POST", body: JSON.stringify({ asset: mintAsset, amount: Number(byId("mint-amount").value) })
       });
       byId("mint-invoice").textContent = lastMintQuote.request;
       byId("mint-quote-id").textContent = lastMintQuote.quote_id;
@@ -306,6 +319,7 @@ function wireMint() {
         method: "POST", body: JSON.stringify({ asset: lastMintQuote.asset, amount: lastMintQuote.amount, quote_id: lastMintQuote.quote_id })
       });
       byId("mint-token-output").textContent = result.token;
+      byId("mint-token-receipt").hidden = false;
       setMessage("mint-message", "Cashu token minted.", "success");
     } catch (error) { setMessage("mint-message", error.message, "error"); }
   });
