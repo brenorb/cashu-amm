@@ -57,6 +57,7 @@ test("the page exposes Cashu token operations and mint status controls", () => {
     "trade-form",
     "redeem-form",
     "activity-ledger",
+    "ledger-count",
     "refresh-mints",
     "sat-token-input",
     "usd-token-input",
@@ -86,4 +87,5 @@ test("the browser client delegates state to the backend API", async () => {
   assert.match(app, /\/api\/liquidity\/redeem/);
   assert.match(app, /crypto\.randomUUID\(\)/);
   assert.match(app, /operation_id/);
+  assert.match(app, /events\.slice\(-12\)/);
 });

@@ -1,5 +1,5 @@
-import { inspectMint } from "./mints.js?v=20260804-3";
-import { createTokenWallet } from "./wallet.js?v=20260804-3";
+import { inspectMint } from "./mints.js?v=20260805-1";
+import { createTokenWallet } from "./wallet.js?v=20260805-1";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
@@ -235,6 +235,9 @@ function curveCoordinates(normalizedX) {
 function renderLedger(events) {
   const ledger = byId("activity-ledger");
   ledger.replaceChildren();
+  byId("ledger-count").textContent = events.length
+    ? `Showing the latest ${Math.min(events.length, 12)} of ${events.length} server-side events.`
+    : "Server-side event log returned by the Nutshell backend.";
   if (!events.length) {
     const empty = document.createElement("div");
     empty.className = "ledger-empty";
@@ -242,7 +245,7 @@ function renderLedger(events) {
     ledger.append(empty);
     return;
   }
-  for (const item of [...events].reverse()) {
+  for (const item of events.slice(-12).reverse()) {
     const row = document.createElement("article");
     row.className = "ledger-entry";
     const time = new Date(item.time);
