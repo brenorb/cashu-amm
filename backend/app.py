@@ -196,18 +196,24 @@ def create_app(service: PoolService | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
-        return FileResponse(site / "index.html")
+        return FileResponse(
+            site / "index.html", headers={"Cache-Control": "no-store"}
+        )
 
     @app.get("/app.js", include_in_schema=False)
     async def app_javascript() -> FileResponse:
-        return FileResponse(site / "app.js")
+        return FileResponse(site / "app.js", headers={"Cache-Control": "no-store"})
 
     @app.get("/styles.css", include_in_schema=False)
     async def stylesheet() -> FileResponse:
-        return FileResponse(site / "styles.css")
+        return FileResponse(
+            site / "styles.css", headers={"Cache-Control": "no-store"}
+        )
 
     @app.get("/mints.js", include_in_schema=False)
     async def mint_javascript() -> FileResponse:
-        return FileResponse(site / "mints.js")
+        return FileResponse(
+            site / "mints.js", headers={"Cache-Control": "no-store"}
+        )
 
     return app

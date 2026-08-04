@@ -27,6 +27,11 @@ test("all user-facing copy is English and avoids serialization jargon", () => {
   assert.doesNotMatch(html, /Liquidez|Obter|Resgatar|Copiar|Você|participação/i);
 });
 
+test("frontend assets use a cache-busting version", () => {
+  assert.match(html, /styles\.css\?v=\d+-\d+/);
+  assert.match(html, /app\.js\?v=\d+-\d+/);
+});
+
 test("the page exposes Cashu token operations and mint status controls", () => {
   for (const id of [
     "refresh-pool",

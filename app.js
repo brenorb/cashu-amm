@@ -1,4 +1,4 @@
-import { inspectMint } from "./mints.js";
+import { inspectMint } from "./mints.js?v=20260804-1";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;

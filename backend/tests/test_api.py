@@ -115,6 +115,26 @@ async def test_same_server_serves_the_website() -> None:
 
     assert response.status_code == 200
     assert "Cashu AMM" in response.text
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_frontend_assets_are_not_cached() -> None:
+    pool, _, _, _ = service()
+    app = create_app(pool)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        responses = [
+            await client.get(path)
+            for path in ("/app.js", "/styles.css", "/mints.js")
+        ]
+
+    assert all(response.status_code == 200 for response in responses)
+    assert all(
+        response.headers["cache-control"] == "no-store" for response in responses
+    )
 
 
 @pytest.mark.asyncio
