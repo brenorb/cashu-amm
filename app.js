@@ -1,5 +1,5 @@
-import { inspectMint } from "./mints.js?v=20260805-1";
-import { createTokenWallet } from "./wallet.js?v=20260805-1";
+import { inspectMint } from "./mints.js?v=20260805-2";
+import { createTokenWallet } from "./wallet.js?v=20260805-2";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
@@ -20,6 +20,15 @@ const formatUsd = (cents) => new Intl.NumberFormat("en-US", {
 const formatPrice = (value) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", maximumFractionDigits: 2
 }).format(Number(value));
+
+function formatLpUnitValue(pool, spot, initialized) {
+  if (!initialized || !pool.shares) return "—";
+  const satPerShare = Number(pool.sat) / Number(pool.shares);
+  const usdPerShare = Number(pool.usd) / Number(pool.shares) / 100;
+  const markValue = satPerShare * Number(spot) / 100_000_000 + usdPerShare;
+  const markLabel = markValue < 0.01 ? `$${markValue.toFixed(4)}` : formatPrice(markValue);
+  return `1 LP ≈ ${satPerShare.toFixed(2)} sat + $${usdPerShare.toFixed(4)} · ${markLabel} mark`;
+}
 
 const walletInputAsset = () => direction === "sat-usd" ? "sat" : "usd";
 const tokenCountLabel = (count) => `${count} bearer token${count === 1 ? "" : "s"} stored`;
@@ -45,6 +54,10 @@ function renderWallet() {
   byId("wallet-sat-count").textContent = tokenCountLabel(sat.length);
   byId("wallet-usd-count").textContent = tokenCountLabel(usd.length);
   byId("wallet-lp-count").textContent = tokenCountLabel(lp.length);
+  const lpValue = snapshot
+    ? formatLpUnitValue(snapshot.pool, snapshot.price_usd_per_btc, snapshot.initialized)
+    : "1 LP share value unavailable until the pool is loaded";
+  byId("wallet-lp-value").textContent = lpValue;
   byId("wallet-token-count").textContent = `${sat.length + usd.length + lp.length} tokens`;
   const demoPair = demoPairAmounts();
   byId("demo-pair-amounts").textContent = `${formatInteger(demoPair.sat)} sat + ${formatUsd(demoPair.usd)}`;
@@ -188,6 +201,7 @@ function render() {
     ? formatInteger(BigInt(pool.sat) * BigInt(pool.usd))
     : "Not initialized";
   byId("pool-shares").textContent = `${formatInteger(pool.shares)} LP`;
+  byId("lp-unit-value").textContent = formatLpUnitValue(pool, spot, initialized);
   renderCurve(pool, spot, initialized);
   renderLedger(snapshot.events || []);
 }

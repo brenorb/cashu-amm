@@ -380,6 +380,7 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 .balance-card strong { display: block; margin: 10px 0 16px; font-family: Baskerville, Georgia, serif; font-size: 31px; font-weight: 400; }
 .balance-card small { color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
 .balance-card.ink small { color: rgba(241, 237, 223, 0.72); }
+.balance-card .wallet-share-value { display: block; margin: -9px 0 10px; font-size: 10px; }
 .balance-card button {
   position: relative;
   z-index: 1;
@@ -531,6 +532,18 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 .quote-sheet > div:last-child { border-right: 0; }
 .quote-sheet span { display: block; margin-bottom: 7px; color: var(--ink-soft); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
 .quote-sheet strong { font-size: 12px; }
+
+.lp-value-note {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+  padding: 15px 16px;
+  border-left: 3px solid var(--acid);
+  background: rgba(217, 255, 87, 0.22);
+}
+.lp-value-note span { color: var(--ink-soft); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.lp-value-note strong { font-family: Baskerville, Georgia, serif; font-size: 20px; font-weight: 400; }
+.lp-value-note small { color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
 
 .primary-action, .secondary-action {
   width: 100%;

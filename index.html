@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
-    <link rel="stylesheet" href="./styles.css?v=20260805-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260805-2" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -121,6 +121,7 @@
             <article class="balance-card ink">
               <span>Pool shares</span>
               <strong id="wallet-lp">0 LP</strong>
+              <small class="wallet-share-value" id="wallet-lp-value">1 LP share value unavailable until the pool is loaded</small>
               <small id="wallet-lp-count">0 bearer tokens stored</small>
               <div class="wallet-card-actions">
                 <button type="button" data-wallet-liquidity disabled>Add liquidity</button>
@@ -234,6 +235,12 @@
                 <div><span>Trading fee</span><strong>1%</strong></div>
               </div>
 
+              <div class="lp-value-note">
+                <span>Current value of 1 LP share</span>
+                <strong id="lp-unit-value">—</strong>
+                <small>Pro-rata SAT + USD reserves. The USD mark uses the current BTC/USD spot price.</small>
+              </div>
+
               <button class="primary-action" type="submit">
                 <span>Deposit and issue LP shares</span><b>↗</b>
               </button>
@@ -335,6 +342,6 @@
       <span>testnet only · custodial operator</span>
     </footer>
 
-    <script type="module" src="./app.js?v=20260805-1"></script>
+    <script type="module" src="./app.js?v=20260805-2"></script>
   </body>
 </html>

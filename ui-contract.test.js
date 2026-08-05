@@ -39,6 +39,8 @@ test("the site includes an explicit browser-local test wallet", () => {
   assert.match(html, /id="wallet-sat"/);
   assert.match(html, /id="wallet-usd"/);
   assert.match(html, /id="wallet-lp"/);
+  assert.match(html, /id="wallet-lp-value"/);
+  assert.match(html, /id="lp-unit-value"/);
   assert.match(html, /id="get-demo-funds"/);
   assert.match(html, /data-wallet-liquidity/);
 });
