@@ -27,7 +27,7 @@ function formatLpUnitValue(pool, spot, initialized) {
   const usdPerShare = Number(pool.usd) / Number(pool.shares) / 100;
   const markValue = satPerShare * Number(spot) / 100_000_000 + usdPerShare;
   const markLabel = markValue < 0.01 ? `$${markValue.toFixed(4)}` : formatPrice(markValue);
-  return `1 LP ≈ ${satPerShare.toFixed(2)} sat + $${usdPerShare.toFixed(4)} · ${markLabel} mark`;
+  return `1 LP ≈ ${satPerShare.toFixed(2)} sat + $${usdPerShare.toFixed(4)}; estimated USD value: ${markLabel}`;
 }
 
 const walletInputAsset = () => direction === "sat-usd" ? "sat" : "usd";
