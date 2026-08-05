@@ -557,6 +557,13 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 .liquidity-estimate strong { font-family: Baskerville, Georgia, serif; font-size: 24px; font-weight: 400; }
 .liquidity-estimate small { color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
 
+.liquidity-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 28px 0 24px; border: 1px solid var(--ink); }
+.liquidity-modes button { padding: 14px 16px; border: 0; border-right: 1px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer; text-align: left; font-size: 11px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.liquidity-modes button:last-child { border-right: 0; }
+.liquidity-modes button.active { background: var(--ink); color: var(--paper); }
+.liquidity-modes small { display: block; margin-top: 6px; color: inherit; font-size: 9px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.72; text-transform: none; }
+.single-asset-switch { margin-bottom: 20px; }
+
 .primary-action, .secondary-action {
   width: 100%;
   margin-top: 22px;

@@ -70,6 +70,42 @@ def service() -> tuple[PoolService, FakeGateway, FakeGateway, FakeGateway]:
     return pool, sat, usd, share
 
 
+@pytest.mark.asyncio
+async def test_single_sided_deposit_zaps_input_and_mints_lp() -> None:
+    pool, sat, _usd, share = service()
+    sat.received["single-sat"] = 100_000
+
+    result = await pool.deposit_single("sat", "single-sat")
+
+    assert result.amount == 100_000
+    assert result.swapped > 0
+    assert result.counter_amount > 0
+    assert result.shares == 10_857
+    assert share.issued == [10_857]
+    assert pool.state.sat == 1_100_000
+    assert pool.state.usd == 50_000
+    assert pool.state.shares == 234_463
+
+
+@pytest.mark.asyncio
+async def test_single_sided_deposit_refunds_when_pool_is_empty() -> None:
+    sat = FakeGateway(received={"single-sat": 100_000})
+    usd = FakeGateway()
+    share = FakeGateway()
+    pool = PoolService(
+        sat_gateway=sat,
+        usd_gateway=usd,
+        share_gateway=share,
+        state=PoolState(sat=0, usd=0, shares=0),
+    )
+
+    with pytest.raises(OperationError, match="initialized") as error:
+        await pool.deposit_single("sat", "single-sat")
+
+    assert error.value.refunds == {Asset.SAT: "cashuB-fake-100000"}
+    assert share.issued == []
+
+
 def journal_service(tmp_path):
     sat = FakeGateway()
     usd = FakeGateway()

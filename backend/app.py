@@ -22,6 +22,21 @@ class DepositRequest(BaseModel):
     usd_token: str = Field(min_length=1)
 
 
+class SingleDepositRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operation_id: UUID
+    asset: str = Field(min_length=1)
+    token: str = Field(min_length=1)
+
+
+class SingleDepositQuoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset: str = Field(min_length=1)
+    amount: int = Field(gt=0)
+
+
 class SwapRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -120,6 +135,43 @@ def create_app(service: PoolService | None = None) -> FastAPI:
             )
             return {
                 "shares": result.shares,
+                "lp_token": result.lp_token,
+                "pool": _snapshot(current(request)),
+            }
+        except OperationError as error:
+            return _error_response(error)
+
+    @app.post("/api/liquidity/deposit-single/quote")
+    async def single_deposit_quote(
+        payload: SingleDepositQuoteRequest, request: Request
+    ):
+        try:
+            result = await current(request).quote_single_deposit(
+                payload.asset, payload.amount
+            )
+            return {
+                "asset": result.asset.value,
+                "amount": result.amount,
+                "shares": result.shares,
+                "swapped": result.swapped,
+                "counter_amount": result.counter_amount,
+                "pool": _snapshot(current(request)),
+            }
+        except OperationError as error:
+            return _error_response(error)
+
+    @app.post("/api/liquidity/deposit-single")
+    async def single_deposit(payload: SingleDepositRequest, request: Request):
+        try:
+            result = await current(request).deposit_single(
+                payload.asset, payload.token, str(payload.operation_id)
+            )
+            return {
+                "asset": result.asset.value,
+                "amount": result.amount,
+                "shares": result.shares,
+                "swapped": result.swapped,
+                "counter_amount": result.counter_amount,
                 "lp_token": result.lp_token,
                 "pool": _snapshot(current(request)),
             }

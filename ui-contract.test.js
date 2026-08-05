@@ -66,6 +66,11 @@ test("the page exposes Cashu token operations and mint status controls", () => {
     "liquidity-estimate",
     "liquidity-share-amount",
     "liquidity-estimate-note",
+    "single-liquidity-form",
+    "single-token-input",
+    "single-share-amount",
+    "single-estimate-note",
+    "use-wallet-single",
     "trade-token-input",
     "lp-token-input",
     "mint-quote-form",
@@ -91,6 +96,7 @@ test("the browser client delegates state to the backend API", async () => {
   assert.match(app, /createTokenWallet/);
   assert.match(app, /localStorage/);
   assert.match(app, /\/api\/liquidity\/deposit/);
+  assert.match(app, /\/api\/liquidity\/deposit-single/);
   assert.match(app, /\/api\/swap/);
   assert.match(app, /\/api\/liquidity\/redeem/);
   assert.match(app, /crypto\.randomUUID\(\)/);

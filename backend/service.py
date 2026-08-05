@@ -7,7 +7,13 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import uuid4
 
-from .amm import PoolState, quote_exact_in, redemption_amounts, shares_for_deposit
+from .amm import (
+    PoolState,
+    quote_exact_in,
+    redemption_amounts,
+    shares_for_deposit,
+    single_sided_deposit_quote,
+)
 from .idempotency import OperationResultStore
 from .journal import OperationJournal
 
@@ -52,6 +58,20 @@ class OperationError(RuntimeError):
 @dataclass(frozen=True)
 class DepositResult:
     shares: int
+    lp_token: str
+
+
+@dataclass(frozen=True)
+class SingleDepositQuote:
+    asset: Asset
+    amount: int
+    shares: int
+    swapped: int
+    counter_amount: int
+
+
+@dataclass(frozen=True)
+class SingleDepositResult(SingleDepositQuote):
     lp_token: str
 
 
@@ -170,6 +190,115 @@ class PoolService:
                 "deposit",
                 request,
                 {"shares": result.shares, "lp_token": result.lp_token},
+            )
+            self._complete(journal_id)
+            return result
+
+    async def quote_single_deposit(self, asset: str, amount: int) -> SingleDepositQuote:
+        try:
+            selected = Asset(asset)
+        except ValueError as error:
+            raise OperationError("invalid_asset", "invalid single-sided input asset") from error
+        if selected is Asset.LP or type(amount) is not int or amount <= 0:
+            raise OperationError("invalid_deposit_request", "invalid single-sided deposit")
+        async with self._lock:
+            try:
+                shares, swapped, counter_amount = single_sided_deposit_quote(
+                    self.state, selected.value, amount
+                )
+            except ValueError as error:
+                raise OperationError("single_deposit_unavailable", str(error)) from error
+            return SingleDepositQuote(
+                asset=selected,
+                amount=amount,
+                shares=shares,
+                swapped=swapped,
+                counter_amount=counter_amount,
+            )
+
+    async def deposit_single(
+        self, asset: str, token: str, operation_id: str | None = None
+    ) -> SingleDepositResult:
+        async with self._lock:
+            try:
+                selected = Asset(asset)
+            except ValueError as error:
+                raise OperationError("invalid_asset", "invalid single-sided input asset") from error
+            if selected is Asset.LP:
+                raise OperationError("invalid_asset", "LP cannot be deposited as a single-sided asset")
+            request = {"asset": selected.value, "token": token}
+            cached = self._cached(operation_id, "deposit_single", request)
+            if cached is not None:
+                return SingleDepositResult(
+                    asset=selected,
+                    amount=int(cached["amount"]),
+                    shares=int(cached["shares"]),
+                    swapped=int(cached["swapped"]),
+                    counter_amount=int(cached["counter_amount"]),
+                    lp_token=str(cached["lp_token"]),
+                )
+            journal_id = self._begin(
+                "deposit_single",
+                {"asset": selected.value, "client_operation_id": operation_id},
+            )
+            gateway = self._gateway(selected)
+            try:
+                amount = await self._receive(gateway, token)
+            except Exception:
+                self._reject(journal_id)
+                raise
+            self._update(journal_id, stage="input_received", amount=amount)
+            try:
+                shares, swapped, counter_amount = single_sided_deposit_quote(
+                    self.state, selected.value, amount
+                )
+                lp_token = await self.share_gateway.issue(shares)
+                self._update(
+                    journal_id,
+                    stage="lp_sent",
+                    shares=shares,
+                    swapped=swapped,
+                    counter_amount=counter_amount,
+                )
+            except Exception as error:
+                refunds = await self._refund(gateway, selected, amount)
+                self._fail(journal_id, error, refunds)
+                raise OperationError(
+                    "single_deposit_failed", str(error), refunds=refunds
+                ) from error
+
+            next_sat = self.state.sat + amount if selected is Asset.SAT else self.state.sat
+            next_usd = self.state.usd + amount if selected is Asset.USD else self.state.usd
+            self.state = PoolState(
+                sat=next_sat,
+                usd=next_usd,
+                shares=self.state.shares + shares,
+                events=self._event(
+                    "liquidity",
+                    f"{shares} LP emitted from {amount} {selected.value} single-sided deposit",
+                ),
+            )
+            await self._persist()
+            result = SingleDepositResult(
+                asset=selected,
+                amount=amount,
+                shares=shares,
+                swapped=swapped,
+                counter_amount=counter_amount,
+                lp_token=lp_token,
+            )
+            self._store_result(
+                operation_id,
+                "deposit_single",
+                request,
+                {
+                    "asset": selected.value,
+                    "amount": amount,
+                    "shares": shares,
+                    "swapped": swapped,
+                    "counter_amount": counter_amount,
+                    "lp_token": lp_token,
+                },
             )
             self._complete(journal_id)
             return result

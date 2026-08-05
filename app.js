@@ -1,11 +1,13 @@
-import { inspectMint } from "./mints.js?v=20260805-2";
-import { createTokenWallet } from "./wallet.js?v=20260805-2";
+import { inspectMint } from "./mints.js?v=20260805-3";
+import { createTokenWallet } from "./wallet.js?v=20260805-3";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
 let direction = "sat-usd";
 let mintAsset = "sat";
+let singleAsset = "sat";
 let lastMintQuote = null;
+let singleQuoteSequence = 0;
 const pendingOperations = new Map();
 const wallet = createTokenWallet(window.localStorage);
 
@@ -69,6 +71,37 @@ function renderLiquidityEstimate() {
   byId("liquidity-estimate-note").textContent = "Estimate from the current pool and wallet token amounts. Final shares can be lower after Cashu input fees and rounding.";
 }
 
+async function renderSingleLiquidityEstimate() {
+  const sequence = ++singleQuoteSequence;
+  const token = byId("single-token-input").value.trim();
+  const entry = wallet.find(token);
+  const amount = entry && entry.asset === singleAsset ? entry.amount : null;
+  if (!amount) {
+    byId("single-share-amount").textContent = "—";
+    byId("single-estimate-note").textContent = "Load one SAT or USD token from this browser wallet to estimate shares.";
+    return;
+  }
+  if (!snapshot?.initialized) {
+    byId("single-share-amount").textContent = "—";
+    byId("single-estimate-note").textContent = "The pool needs its first balanced SAT + USD deposit before a one-sided zap can be priced.";
+    return;
+  }
+  try {
+    const quote = await fetchJson("/api/liquidity/deposit-single/quote", {
+      method: "POST",
+      body: JSON.stringify({ asset: singleAsset, amount })
+    });
+    if (sequence !== singleQuoteSequence) return;
+    const counter = singleAsset === "sat" ? `${formatUsd(quote.counter_amount)} USD` : `${formatInteger(quote.counter_amount)} sat`;
+    byId("single-share-amount").textContent = `${formatInteger(quote.shares)} LP shares`;
+    byId("single-estimate-note").textContent = `About ${formatInteger(quote.swapped)} ${singleAsset.toUpperCase()} is swapped internally into ${counter}. Final shares can be lower after Cashu fees and rounding.`;
+  } catch (error) {
+    if (sequence !== singleQuoteSequence) return;
+    byId("single-share-amount").textContent = "—";
+    byId("single-estimate-note").textContent = error.message;
+  }
+}
+
 const walletInputAsset = () => direction === "sat-usd" ? "sat" : "usd";
 const tokenCountLabel = (count) => `${count} bearer token${count === 1 ? "" : "s"} stored`;
 
@@ -108,7 +141,12 @@ function renderWallet() {
   for (const button of document.querySelectorAll("[data-wallet-liquidity]")) {
     button.disabled = sat.length === 0 || usd.length === 0;
   }
+  byId("use-wallet-single").disabled = sat.length === 0 && usd.length === 0;
+  for (const button of document.querySelectorAll("[data-wallet-single]")) {
+    button.disabled = sat.length === 0 && usd.length === 0;
+  }
   byId("use-wallet-trade").disabled = wallet.list(walletInputAsset()).length === 0;
+  renderSingleLiquidityEstimate();
 }
 
 function storeWalletToken(asset, amount, token) {
@@ -370,6 +408,36 @@ function wireTabs() {
 function wireLiquidity() {
   byId("sat-token-input").addEventListener("input", renderLiquidityEstimate);
   byId("usd-token-input").addEventListener("input", renderLiquidityEstimate);
+  byId("single-token-input").addEventListener("input", renderSingleLiquidityEstimate);
+  for (const button of document.querySelectorAll("[data-single-asset]")) {
+    button.addEventListener("click", () => {
+      singleAsset = button.dataset.singleAsset;
+      for (const candidate of document.querySelectorAll("[data-single-asset]")) {
+        candidate.classList.toggle("active", candidate === button);
+      }
+      byId("single-asset-label").textContent = singleAsset.toUpperCase();
+      byId("single-token-input").placeholder = `Paste a Cashu ${singleAsset.toUpperCase()} token`;
+      byId("single-token-input").value = wallet.latest(singleAsset)?.token || "";
+      renderSingleLiquidityEstimate();
+    });
+  }
+  byId("balanced-liquidity-mode").addEventListener("click", () => {
+    byId("balanced-liquidity-mode").classList.add("active");
+    byId("single-liquidity-mode").classList.remove("active");
+    byId("balanced-liquidity-mode").setAttribute("aria-selected", "true");
+    byId("single-liquidity-mode").setAttribute("aria-selected", "false");
+    byId("liquidity-form").hidden = false;
+    byId("single-liquidity-form").hidden = true;
+  });
+  byId("single-liquidity-mode").addEventListener("click", () => {
+    byId("single-liquidity-mode").classList.add("active");
+    byId("balanced-liquidity-mode").classList.remove("active");
+    byId("single-liquidity-mode").setAttribute("aria-selected", "true");
+    byId("balanced-liquidity-mode").setAttribute("aria-selected", "false");
+    byId("liquidity-form").hidden = true;
+    byId("single-liquidity-form").hidden = false;
+    renderSingleLiquidityEstimate();
+  });
   byId("liquidity-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("liquidity-message", "Sending both Cashu tokens to the pool…");
@@ -393,6 +461,27 @@ function wireLiquidity() {
     } catch (error) {
       const refunded = showRefunds(error.body?.refunds, { sat: satToken, usd: usdToken });
       setMessage("liquidity-message", refunded ? `${error.message} Returned tokens are shown below.` : error.message, "error");
+    }
+  });
+  byId("single-liquidity-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setMessage("single-liquidity-message", "Swapping part of the token internally and issuing LP shares…");
+    const token = byId("single-token-input").value.trim();
+    try {
+      const result = await postOperation("deposit_single", "/api/liquidity/deposit-single", {
+        asset: singleAsset,
+        token
+      });
+      wallet.remove(token);
+      storeWalletToken("lp", result.shares, result.lp_token);
+      byId("lp-token-value").textContent = result.lp_token;
+      byId("token-receipt").hidden = false;
+      setMessage("single-liquidity-message", `Deposit complete: ${formatInteger(result.shares)} LP shares saved to this browser.`, "success");
+      snapshot = result.pool;
+      render();
+    } catch (error) {
+      const refunded = showRefunds(error.body?.refunds, { [singleAsset]: token });
+      setMessage("single-liquidity-message", refunded ? `${error.message} The returned token is shown below.` : error.message, "error");
     }
   });
 }
@@ -531,6 +620,20 @@ function loadWalletLiquidity() {
   setMessage("liquidity-message", `${formatSat(sat.amount)} and ${formatUsd(usd.amount)} loaded from this browser.`, "success");
 }
 
+function loadWalletSingleLiquidity() {
+  const entry = wallet.latest(singleAsset) || wallet.latest(singleAsset === "sat" ? "usd" : "sat");
+  if (!entry) return;
+  if (entry.asset !== singleAsset) {
+    singleAsset = entry.asset;
+    document.querySelector(`[data-single-asset="${singleAsset}"]`).click();
+  }
+  byId("single-liquidity-mode").click();
+  byId("single-token-input").value = entry.token;
+  renderSingleLiquidityEstimate();
+  byId("single-liquidity-form").scrollIntoView({ behavior: "smooth", block: "center" });
+  setMessage("single-liquidity-message", `${formatInteger(entry.amount)} ${entry.asset.toUpperCase()} loaded from this browser.`, "success");
+}
+
 function loadWalletRedemption() {
   const entry = wallet.latest("lp");
   if (!entry) return;
@@ -577,6 +680,10 @@ function wireWallet() {
   for (const button of document.querySelectorAll("[data-wallet-liquidity]")) {
     button.addEventListener("click", loadWalletLiquidity);
   }
+  for (const button of document.querySelectorAll("[data-wallet-single]")) {
+    button.addEventListener("click", loadWalletSingleLiquidity);
+  }
+  byId("use-wallet-single").addEventListener("click", loadWalletSingleLiquidity);
   byId("use-wallet-trade").addEventListener("click", () => loadWalletTrade(walletInputAsset()));
   byId("clear-wallet").addEventListener("click", () => {
     if (!window.confirm("Remove all locally stored testnet bearer tokens from this browser?")) return;

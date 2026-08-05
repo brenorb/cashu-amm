@@ -51,6 +51,35 @@ async def test_deposit_endpoint_returns_cashu_outputs() -> None:
 
 
 @pytest.mark.asyncio
+async def test_single_deposit_quote_and_endpoint() -> None:
+    pool, sat, _usd, _share = service()
+    sat.received["single-sat"] = 100_000
+    app = create_app(pool)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        quote = await client.post(
+            "/api/liquidity/deposit-single/quote",
+            json={"asset": "sat", "amount": 100_000},
+        )
+        result = await client.post(
+            "/api/liquidity/deposit-single",
+            json={
+                "operation_id": "123e4567-e89b-12d3-a456-426614174001",
+                "asset": "sat",
+                "token": "single-sat",
+            },
+        )
+
+    assert quote.status_code == 200
+    assert quote.json()["shares"] == 10_857
+    assert result.status_code == 200
+    assert result.json()["shares"] == 10_857
+    assert result.json()["swapped"] > 0
+
+
+@pytest.mark.asyncio
 async def test_invalid_request_is_rejected_without_mutating_pool() -> None:
     pool, _, _, _ = service()
     app = create_app(pool)

@@ -53,6 +53,9 @@ docker compose down
    tokens adicionais para trades.
 2. Use **Add liquidity** na carteira para carregar os tokens SAT + USD no
    depósito e receber um token LP, também salvo automaticamente.
+   Na aba **One asset**, você também pode enviar apenas SAT ou USD depois que a
+   pool já estiver inicializada. A pool faz um zap interno de parte do token e
+   emite as shares correspondentes.
 3. Use **Sell BTC** ou **Buy BTC** na carteira para carregar o token mais recente
    no trade. O ativo recebido substitui economicamente o token gasto.
 4. Use **Redeem** na carteira para devolver o LP e salvar os dois ativos pro rata.

@@ -90,6 +90,17 @@ O depósito deve seguir a proporção atual. A PoC aceita desvio de até 1% para
 absorver fees de input Cashu; acima disso, devolve os dois tokens. Quantidades e
 shares sempre arredondam em favor da pool.
 
+### Depósito de uma só denominação (single-sided zap)
+
+Depois que a pool já foi inicializada, o usuário também pode enviar somente SAT
+ou somente USD. A pool calcula uma troca interna de parte do valor contra as
+reservas atuais e usa o restante do ativo enviado mais o resultado dessa troca
+como um depósito proporcional. O cálculo escolhe a quantidade inteira que
+maximiza as shares após a taxa de 1% e os arredondamentos.
+
+O primeiro depósito continua exigindo os dois ativos, porque uma pool vazia não
+tem preço contra o qual fazer a troca.
+
 ### Resgate
 
 Para `L` shares:
@@ -189,6 +200,10 @@ PoC, preparar, cancelar e bloquear em caso ambíguo é a fronteira correta.
 - `POST /api/mint`: emite o TokenV4 de uma quote paga;
 - `POST /api/liquidity/deposit`: recebe `{operation_id, sat_token, usd_token}` e
   devolve LP;
+- `POST /api/liquidity/deposit-single/quote`: recebe `{asset, amount}` e estima
+  shares, quantidade trocada internamente e contraparte;
+- `POST /api/liquidity/deposit-single`: recebe `{operation_id, asset, token}` e
+  devolve LP por um depósito single-sided;
 - `POST /api/swap`: recebe `{operation_id, direction, token}` e devolve o outro
   ativo;
 - `POST /api/liquidity/redeem`: recebe `{operation_id, lp_token}` e devolve SAT
@@ -219,7 +234,7 @@ mint, depósito, ambos os swaps e resgate sem imprimir os tokens. O comando
 - fundos reais e solvência garantida;
 - operação trustless, federação ou governança;
 - HTLC, Nostr, oracle e roteamento entre pools;
-- depósitos single-sided, StableSwap, weighted ou concentrated liquidity;
+- StableSwap, weighted ou concentrated liquidity;
 - recuperação automática de toda falha possível;
 - segurança e operação de produção.
 - slippage protection (`minimum_amount_out`), acompanhada na
