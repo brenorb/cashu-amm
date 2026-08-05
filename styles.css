@@ -545,6 +545,18 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 .lp-value-note strong { font-family: Baskerville, Georgia, serif; font-size: 20px; font-weight: 400; }
 .lp-value-note small { color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
 
+.liquidity-estimate {
+  display: grid;
+  gap: 7px;
+  margin-top: 22px;
+  padding: 15px 16px;
+  border-left: 3px solid var(--orange);
+  background: rgba(255, 92, 53, 0.1);
+}
+.liquidity-estimate > span { color: var(--ink-soft); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.liquidity-estimate strong { font-family: Baskerville, Georgia, serif; font-size: 24px; font-weight: 400; }
+.liquidity-estimate small { color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
+
 .primary-action, .secondary-action {
   width: 100%;
   margin-top: 22px;
@@ -587,6 +599,19 @@ h2 { font-size: clamp(38px, 4vw, 62px); line-height: 0.92; }
 .redeem-drawer summary span { color: var(--orange); }
 .redeem-drawer form { padding: 10px 0 4px; }
 .redeem-preview { margin-top: 14px; color: var(--ink-soft); font-size: 12px; }
+.redeem-estimate {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 15px 16px;
+  border-left: 3px solid var(--blue);
+  background: rgba(185, 217, 255, 0.35);
+}
+.redeem-estimate > div { display: grid; gap: 6px; }
+.redeem-estimate span { color: var(--ink-soft); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.redeem-estimate strong { font-family: Baskerville, Georgia, serif; font-size: 22px; font-weight: 400; }
+.redeem-estimate small { grid-column: 1 / -1; color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
 
 .direction-switch { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 30px; border: 1px solid var(--ink); }
 .direction-switch button { padding: 14px 12px; border: 0; background: transparent; cursor: pointer; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }

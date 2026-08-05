@@ -30,6 +30,45 @@ function formatLpUnitValue(pool, spot, initialized) {
   return `1 LP ≈ ${satPerShare.toFixed(2)} sat + $${usdPerShare.toFixed(4)}; estimated USD value: ${markLabel}`;
 }
 
+function integerSqrt(value) {
+  if (value < 0n) throw new RangeError("square root of a negative value");
+  if (value < 2n) return value;
+  let low = 1n;
+  let high = value;
+  while (low <= high) {
+    const middle = (low + high) / 2n;
+    const squared = middle * middle;
+    if (squared === value) return middle;
+    if (squared < value) low = middle + 1n;
+    else high = middle - 1n;
+  }
+  return high;
+}
+
+function renderLiquidityEstimate() {
+  const satToken = wallet.find(byId("sat-token-input").value.trim());
+  const usdToken = wallet.find(byId("usd-token-input").value.trim());
+  if (!satToken || satToken.asset !== "sat" || !usdToken || usdToken.asset !== "usd") {
+    byId("liquidity-share-amount").textContent = "—";
+    byId("liquidity-estimate-note").textContent = "Load both tokens from this browser wallet to estimate shares.";
+    return;
+  }
+
+  const depositSat = BigInt(satToken.amount);
+  const depositUsd = BigInt(usdToken.amount);
+  let shares;
+  if (!snapshot?.initialized) {
+    shares = integerSqrt(depositSat * depositUsd);
+  } else {
+    const poolShares = BigInt(snapshot.pool.shares);
+    shares = depositSat * poolShares / BigInt(snapshot.pool.sat);
+    const usdShares = depositUsd * poolShares / BigInt(snapshot.pool.usd);
+    if (usdShares < shares) shares = usdShares;
+  }
+  byId("liquidity-share-amount").textContent = `${formatInteger(shares)} LP shares`;
+  byId("liquidity-estimate-note").textContent = "Estimate from the current pool and wallet token amounts. Final shares can be lower after Cashu input fees and rounding.";
+}
+
 const walletInputAsset = () => direction === "sat-usd" ? "sat" : "usd";
 const tokenCountLabel = (count) => `${count} bearer token${count === 1 ? "" : "s"} stored`;
 
@@ -59,6 +98,7 @@ function renderWallet() {
     : "1 LP share value unavailable until the pool is loaded";
   byId("wallet-lp-value").textContent = lpValue;
   byId("wallet-token-count").textContent = `${sat.length + usd.length + lp.length} tokens`;
+  renderLiquidityEstimate();
   const demoPair = demoPairAmounts();
   byId("demo-pair-amounts").textContent = `${formatInteger(demoPair.sat)} sat + ${formatUsd(demoPair.usd)}`;
 
@@ -104,6 +144,34 @@ function replaceWalletRefund(asset, originalToken, refundToken) {
   if (!original || original.asset !== asset) return;
   wallet.remove(originalToken);
   storeWalletToken(asset, original.amount, refundToken);
+}
+
+function renderRedemptionQuote() {
+  const token = byId("lp-token-input").value.trim();
+  const entry = wallet.find(token);
+  const estimate = byId("redeem-estimate");
+  if (!snapshot?.initialized || !entry || entry.asset !== "lp") {
+    estimate.hidden = true;
+    byId("redeem-sat-amount").textContent = "—";
+    byId("redeem-usd-amount").textContent = "—";
+    return;
+  }
+
+  const shares = BigInt(entry.amount);
+  const totalShares = BigInt(snapshot.pool.shares);
+  const sat = BigInt(snapshot.pool.sat) * shares / totalShares;
+  const usd = BigInt(snapshot.pool.usd) * shares / totalShares;
+  byId("redeem-sat-amount").textContent = `${formatInteger(sat)} sat`;
+  byId("redeem-usd-amount").textContent = formatUsd(usd);
+  byId("redeem-estimate-note").textContent = `Based on ${formatInteger(shares)} LP shares at the current pool state. Final amounts are floored at redemption.`;
+  estimate.hidden = false;
+}
+
+function showRedemptionAmounts(sat, usd, note) {
+  byId("redeem-sat-amount").textContent = `${formatInteger(sat)} sat`;
+  byId("redeem-usd-amount").textContent = formatUsd(usd);
+  byId("redeem-estimate-note").textContent = note;
+  byId("redeem-estimate").hidden = false;
 }
 
 function setMessage(id, text, type = "") {
@@ -204,6 +272,7 @@ function render() {
   byId("lp-unit-value").textContent = formatLpUnitValue(pool, spot, initialized);
   renderCurve(pool, spot, initialized);
   renderLedger(snapshot.events || []);
+  renderRedemptionQuote();
 }
 
 function renderCurve(pool, spot, initialized) {
@@ -299,6 +368,8 @@ function wireTabs() {
 }
 
 function wireLiquidity() {
+  byId("sat-token-input").addEventListener("input", renderLiquidityEstimate);
+  byId("usd-token-input").addEventListener("input", renderLiquidityEstimate);
   byId("liquidity-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("liquidity-message", "Sending both Cashu tokens to the pool…");
@@ -312,6 +383,8 @@ function wireLiquidity() {
       wallet.remove(satToken);
       wallet.remove(usdToken);
       storeWalletToken("lp", result.shares, result.lp_token);
+      byId("liquidity-share-amount").textContent = `${formatInteger(result.shares)} LP shares`;
+      byId("liquidity-estimate-note").textContent = "Actual shares issued by the pool.";
       byId("lp-token-value").textContent = result.lp_token;
       byId("token-receipt").hidden = false;
       setMessage("liquidity-message", `Deposit complete: ${formatInteger(result.shares)} LP shares saved to this browser.`, "success");
@@ -325,6 +398,7 @@ function wireLiquidity() {
 }
 
 function wireRedemption() {
+  byId("lp-token-input").addEventListener("input", renderRedemptionQuote);
   byId("redeem-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("redeem-message", "Redeeming the Cashu LP share token…");
@@ -336,6 +410,7 @@ function wireRedemption() {
       wallet.remove(lpToken);
       storeWalletToken("sat", result.amounts.sat, result.tokens.sat);
       storeWalletToken("usd", result.amounts.usd, result.tokens.usd);
+      showRedemptionAmounts(result.amounts.sat, result.amounts.usd, "Actual amounts returned by the pool.");
       byId("redeem-sat-token").textContent = result.tokens.sat;
       byId("redeem-usd-token").textContent = result.tokens.usd;
       setMessage("redeem-message", "Redemption complete. Both output tokens were saved to this browser.", "success");
@@ -451,6 +526,7 @@ function loadWalletLiquidity() {
   byId("liquidity-tab").click();
   byId("sat-token-input").value = sat.token;
   byId("usd-token-input").value = usd.token;
+  renderLiquidityEstimate();
   byId("liquidity-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   setMessage("liquidity-message", `${formatSat(sat.amount)} and ${formatUsd(usd.amount)} loaded from this browser.`, "success");
 }
@@ -462,6 +538,7 @@ function loadWalletRedemption() {
   const drawer = document.querySelector(".redeem-drawer");
   drawer.open = true;
   byId("lp-token-input").value = entry.token;
+  renderRedemptionQuote();
   drawer.scrollIntoView({ behavior: "smooth", block: "center" });
   setMessage("redeem-message", `${formatInteger(entry.amount)} LP loaded from this browser.`, "success");
 }

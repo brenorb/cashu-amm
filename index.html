@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
-    <link rel="stylesheet" href="./styles.css?v=20260805-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260805-3" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -229,6 +229,12 @@
                 <div><textarea class="token-entry" id="usd-token-input" rows="3" placeholder="Paste a Cashu USD token"></textarea></div>
               </label>
 
+              <div class="liquidity-estimate" id="liquidity-estimate">
+                <span>Estimated LP shares</span>
+                <strong id="liquidity-share-amount">—</strong>
+                <small id="liquidity-estimate-note">Load both tokens from this browser wallet to estimate shares.</small>
+              </div>
+
               <div class="quote-sheet">
                 <div><span>You receive</span><strong>Cashu LP share token</strong></div>
                 <div><span>Model</span><strong>Constant product</strong></div>
@@ -265,6 +271,11 @@
                   <span>Cashu LP share token</span>
                   <div><textarea class="token-entry" id="lp-token-input" rows="3" placeholder="Paste your Cashu LP token"></textarea></div>
                 </label>
+                <div class="redeem-estimate" id="redeem-estimate" hidden>
+                  <div><span>SAT back</span><strong id="redeem-sat-amount">—</strong></div>
+                  <div><span>USD back</span><strong id="redeem-usd-amount">—</strong></div>
+                  <small id="redeem-estimate-note"></small>
+                </div>
                 <div class="redeem-preview" id="redeem-output">
                   <div class="token-output-row"><b>SAT</b><code id="redeem-sat-token">—</code><button type="button" id="copy-redeem-sat">Copy SAT token</button></div>
                   <div class="token-output-row"><b>USD</b><code id="redeem-usd-token">—</code><button type="button" id="copy-redeem-usd">Copy USD token</button></div>
@@ -342,6 +353,6 @@
       <span>testnet only · custodial operator</span>
     </footer>
 
-    <script type="module" src="./app.js?v=20260805-2"></script>
+    <script type="module" src="./app.js?v=20260805-3"></script>
   </body>
 </html>
