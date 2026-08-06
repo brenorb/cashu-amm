@@ -92,11 +92,22 @@ shares sempre arredondam em favor da pool.
 
 ### Depósito de uma só denominação (single-sided zap)
 
-Depois que a pool já foi inicializada, o usuário também pode enviar somente SAT
-ou somente USD. A pool calcula uma troca interna de parte do valor contra as
-reservas atuais e usa o restante do ativo enviado mais o resultado dessa troca
-como um depósito proporcional. O cálculo escolhe a quantidade inteira que
-maximiza as shares após a taxa de 1% e os arredondamentos.
+Esse fluxo é apenas uma conveniência de interface, não um terceiro tipo de
+liquidez. Depois que a pool já foi inicializada, o usuário pode fornecer somente
+SAT ou somente USD e a aplicação executa automaticamente duas operações:
+
+1. troca uma parte do ativo recebido contra a AMM, obtendo a contraparte;
+2. deposita os dois ativos resultantes pelo fluxo bilateral normal e emite LP.
+
+Na PoC, o backend compõe essas duas etapas em uma chamada para evitar uma
+janela intermediária de falha; economicamente, porém, trata o fluxo como swap
+mais depósito bilateral.
+
+Assim, a taxa de 1% e o impacto de preço da conversão acontecem antes da
+entrada do usuário na posição. O custo e o desbalanço inicial recaem sobre o
+usuário que está entrando, em vez de serem tratados como uma doação ou custo
+absorvido pelos LPs existentes. A cotação deve mostrar o valor convertido e as
+shares esperadas antes da confirmação; arredondamentos favorecem a pool.
 
 O primeiro depósito continua exigindo os dois ativos, porque uma pool vazia não
 tem preço contra o qual fazer a troca.
