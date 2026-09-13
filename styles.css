@@ -7,6 +7,10 @@
   --orange: #ff5c35;
   --acid: #d9ff57;
   --blue: #b9d9ff;
+  --sao-yellow: #f6c445;
+  --sao-blue: #2f77a8;
+  --sao-green: #2a9d75;
+  --sao-red: #e85d75;
   --shadow: 0 22px 55px rgba(44, 40, 29, 0.13);
   font-family: "Avenir Next", "Century Gothic", sans-serif;
   color: var(--ink);
@@ -42,6 +46,70 @@ button { color: inherit; }
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.13'/%3E%3C/svg%3E");
 }
 
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.loading-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  background:
+    linear-gradient(rgba(241, 237, 223, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 237, 223, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.loading-card {
+  position: relative;
+  width: min(520px, 100%);
+  padding: clamp(28px, 6vw, 58px);
+  border: 1px solid rgba(241, 237, 223, 0.28);
+  background: rgba(16, 35, 31, 0.74);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.26);
+}
+
+.loading-brand { display: flex; align-items: center; gap: 20px; }
+.loading-logo { flex: 0 0 auto; width: 82px; overflow: visible; transform-origin: 14px 16px; }
+.logo-string { fill: none; stroke: rgba(241, 237, 223, 0.72); stroke-width: 2; }
+.loading-flag { stroke: var(--ink); stroke-width: 1.4; }
+.flag-red { fill: var(--orange); }
+.flag-yellow { fill: var(--sao-yellow); }
+.flag-blue { fill: var(--sao-blue); }
+.logo-dot { fill: var(--paper); }
+.loading-kicker { margin: 0 0 8px; color: var(--sao-yellow); font-size: 9px; font-weight: 800; letter-spacing: 0.18em; }
+.loading-brand strong { display: block; max-width: 280px; font-family: Baskerville, Georgia, serif; font-size: clamp(28px, 5vw, 44px); font-weight: 400; line-height: 0.95; }
+.loading-progress { height: 4px; margin-top: 42px; overflow: hidden; background: rgba(241, 237, 223, 0.18); }
+.loading-progress span { display: block; width: 100%; height: 100%; transform: scaleX(0.08); transform-origin: left center; background: var(--orange); }
+.loading-caption { min-height: 18px; margin: 13px 0 0; color: rgba(241, 237, 223, 0.68); font-size: 11px; }
+
+.triangle-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid rgba(241, 237, 223, 0.38);
+  background: transparent;
+  color: var(--paper);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.triangle-toggle:hover, .triangle-toggle.is-playing { background: var(--sao-yellow); border-color: var(--sao-yellow); color: var(--ink); }
+.triangle-toggle.is-playing .triangle-symbol { transform: rotate(12deg); }
+.triangle-symbol { display: inline-block; color: var(--orange); font-size: 17px; line-height: 1; transition: transform 180ms ease; }
+
 .site-header {
   position: relative;
   z-index: 5;
@@ -65,17 +133,17 @@ button { color: inherit; }
 }
 
 .wordmark-mark {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--ink);
-  color: var(--acid);
-  font-family: Baskerville, Georgia, serif;
-  font-size: 25px;
-  font-style: italic;
+  width: 42px;
+  height: 42px;
+  overflow: visible;
+  transform-origin: 7px 7px;
 }
+
+.wordmark-string { fill: none; stroke: var(--ink); stroke-width: 2; }
+.wordmark-flag { stroke: var(--ink); stroke-width: 0.9; }
+.wordmark-flag-red { fill: var(--orange); }
+.wordmark-flag-yellow { fill: var(--sao-yellow); }
+.wordmark-flag-blue { fill: var(--sao-blue); }
 
 .wordmark small {
   display: block;

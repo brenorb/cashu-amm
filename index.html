@@ -5,13 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
-    <link rel="stylesheet" href="./styles.css?v=20260805-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260806-1" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
+    <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
+      <div class="loading-card">
+        <div class="loading-brand">
+          <svg class="loading-logo" viewBox="0 0 96 96" role="img" aria-label="São João party flags">
+            <path class="logo-string" d="M14 16h68" />
+            <path class="logo-string" d="M14 16v62" />
+            <path class="loading-flag flag-red" d="M20 18h18l-9 18-9-18Z" />
+            <path class="loading-flag flag-yellow" d="M39 18h18l-9 18-9-18Z" />
+            <path class="loading-flag flag-blue" d="M58 18h18l-9 18-9-18Z" />
+            <circle class="logo-dot" cx="14" cy="16" r="3" />
+          </svg>
+          <div>
+            <p class="loading-kicker">CASHU AMM / SÃO JOÃO</p>
+            <strong>Warming up the market</strong>
+          </div>
+        </div>
+        <div class="loading-progress" aria-hidden="true"><span id="loading-progress-bar"></span></div>
+        <p class="loading-caption" id="loading-caption">Tuning the flags and checking the mint…</p>
+        <button class="triangle-toggle loading-triangle-toggle" id="loading-triangle-toggle" type="button" aria-pressed="false">
+          <span class="triangle-symbol" aria-hidden="true">△</span>
+          <span>Start the triangle beat</span>
+        </button>
+      </div>
+    </div>
     <header class="site-header">
       <a class="wordmark" href="#top" aria-label="Cashu AMM home">
-        <span class="wordmark-mark">C</span>
+        <svg class="wordmark-mark" viewBox="0 0 48 48" aria-hidden="true">
+          <path class="wordmark-string" d="M7 7h34M7 7v34" />
+          <path class="wordmark-flag wordmark-flag-red" d="M11 9h9l-4.5 10L11 9Z" />
+          <path class="wordmark-flag wordmark-flag-yellow" d="M21 9h9l-4.5 10L21 9Z" />
+          <path class="wordmark-flag wordmark-flag-blue" d="M31 9h9l-4.5 10L31 9Z" />
+        </svg>
         <span>Cashu AMM <small>proof of concept</small></span>
       </a>
       <div class="header-actions">
@@ -387,6 +416,7 @@
       <span>testnet only · custodial operator</span>
     </footer>
 
-    <script type="module" src="./app.js?v=20260805-4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" crossorigin="anonymous"></script>
+    <script type="module" src="./app.js?v=20260806-1"></script>
   </body>
 </html>

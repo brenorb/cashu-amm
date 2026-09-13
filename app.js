@@ -1,5 +1,6 @@
 import { inspectMint } from "./mints.js?v=20260805-3";
 import { createTokenWallet } from "./wallet.js?v=20260805-3";
+import { setupSaoJoao } from "./sao-joao.js?v=20260806-1";
 
 const API_BASE = (window.CASHU_AMM_API_URL || window.location.origin).replace(/\/$/, "");
 let snapshot = null;
@@ -716,5 +717,10 @@ wireCopyButton("copy-redeem-usd", "redeem-usd-token");
 wireCopyButton("copy-trade-token", "trade-output-token");
 wireCopyButton("copy-mint-token", "mint-token-output");
 renderWallet();
-refreshPool();
-checkMints();
+const loading = setupSaoJoao();
+const bootStartedAt = performance.now();
+
+Promise.allSettled([refreshPool(), checkMints()]).then(async () => {
+  await pause(Math.max(0, 850 - (performance.now() - bootStartedAt)));
+  loading.finish();
+});

@@ -32,6 +32,20 @@ test("frontend assets use a cache-busting version", () => {
   assert.match(html, /app\.js\?v=\d+-\d+/);
 });
 
+test("the São João loading identity and motion hooks are present", async () => {
+  const saoJoao = await readFile(new URL("./sao-joao.js", import.meta.url), "utf8");
+  assert.match(html, /id="loading-screen"/);
+  assert.match(html, /class="loading-flag flag-red"/);
+  assert.match(html, /class="wordmark-mark"/);
+  assert.match(html, /src="https:\/\/cdn\.jsdelivr\.net\/npm\/gsap@3\.13\.0\/dist\/gsap\.min\.js"/);
+  assert.match(html, /id="loading-triangle-toggle"/);
+  assert.match(saoJoao, /window\.gsap/);
+  assert.match(saoJoao, /gsap\.timeline/);
+  assert.match(saoJoao, /AudioContext/);
+  assert.match(saoJoao, /type = "triangle"/);
+  assert.match(saoJoao, /const pattern = \[/);
+});
+
 test("the site includes an explicit browser-local test wallet", () => {
   assert.match(html, /BROWSER WALLET/);
   assert.match(html, /Your Cashu\./);
