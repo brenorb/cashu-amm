@@ -198,16 +198,22 @@ class PoolService:
         try:
             selected = Asset(asset)
         except ValueError as error:
-            raise OperationError("invalid_asset", "invalid single-sided input asset") from error
+            raise OperationError(
+                "invalid_asset", "invalid single-sided input asset"
+            ) from error
         if selected is Asset.LP or type(amount) is not int or amount <= 0:
-            raise OperationError("invalid_deposit_request", "invalid single-sided deposit")
+            raise OperationError(
+                "invalid_deposit_request", "invalid single-sided deposit"
+            )
         async with self._lock:
             try:
                 shares, swapped, counter_amount = single_sided_deposit_quote(
                     self.state, selected.value, amount
                 )
             except ValueError as error:
-                raise OperationError("single_deposit_unavailable", str(error)) from error
+                raise OperationError(
+                    "single_deposit_unavailable", str(error)
+                ) from error
             return SingleDepositQuote(
                 asset=selected,
                 amount=amount,
@@ -223,9 +229,13 @@ class PoolService:
             try:
                 selected = Asset(asset)
             except ValueError as error:
-                raise OperationError("invalid_asset", "invalid single-sided input asset") from error
+                raise OperationError(
+                    "invalid_asset", "invalid single-sided input asset"
+                ) from error
             if selected is Asset.LP:
-                raise OperationError("invalid_asset", "LP cannot be deposited as a single-sided asset")
+                raise OperationError(
+                    "invalid_asset", "LP cannot be deposited as a single-sided asset"
+                )
             request = {"asset": selected.value, "token": token}
             cached = self._cached(operation_id, "deposit_single", request)
             if cached is not None:
@@ -267,15 +277,20 @@ class PoolService:
                     "single_deposit_failed", str(error), refunds=refunds
                 ) from error
 
-            next_sat = self.state.sat + amount if selected is Asset.SAT else self.state.sat
-            next_usd = self.state.usd + amount if selected is Asset.USD else self.state.usd
+            next_sat = (
+                self.state.sat + amount if selected is Asset.SAT else self.state.sat
+            )
+            next_usd = (
+                self.state.usd + amount if selected is Asset.USD else self.state.usd
+            )
             self.state = PoolState(
                 sat=next_sat,
                 usd=next_usd,
                 shares=self.state.shares + shares,
                 events=self._event(
                     "liquidity",
-                    f"{shares} LP emitted from {amount} {selected.value} single-sided deposit",
+                    f"{shares} LP emitted from {amount} "
+                    f"{selected.value} single-sided deposit",
                 ),
             )
             await self._persist()
@@ -393,9 +408,7 @@ class PoolService:
                         Asset.USD: str(cached["tokens"][Asset.USD.value]),
                     },
                 )
-            journal_id = self._begin(
-                "redeem", {"client_operation_id": operation_id}
-            )
+            journal_id = self._begin("redeem", {"client_operation_id": operation_id})
             try:
                 shares = await self._receive(self.share_gateway, lp_token)
             except Exception:

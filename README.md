@@ -115,3 +115,17 @@ uv run uvicorn backend.main:app --host 127.0.0.1 --port 8090
 
 Esse modo pressupõe uma mint LP Nutshell já disponível na URL configurada. Para
 a demo normal, prefira o Compose, que inicia as duas partes na ordem correta.
+
+## Verification
+
+```sh
+npm ci
+uv sync --no-config --locked --dev
+uv run --no-config --locked ruff check .
+npm test
+uv run --no-config --locked pytest
+```
+
+PR, main and version-tag CI runs both the frontend and backend suites. These
+gates use local/fake mint fixtures; the existing browser E2E against running
+mints remains a separate integration command.
