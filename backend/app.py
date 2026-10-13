@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from .amm import FEE_BPS
 from .service import OperationError, PoolService
 
 
@@ -43,6 +44,15 @@ class SwapRequest(BaseModel):
     operation_id: UUID
     direction: str = Field(min_length=1)
     token: str = Field(min_length=1)
+    minimum_amount_out: int = Field(ge=0, strict=True)
+    quote_deadline_ms: int | None = Field(default=None, ge=0, strict=True)
+
+
+class SwapQuoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    direction: str = Field(min_length=1)
+    amount: int = Field(gt=0, strict=True)
 
 
 class RedeemRequest(BaseModel):
@@ -66,7 +76,7 @@ def _snapshot(service: PoolService) -> dict[str, Any]:
         "pool": {"sat": state.sat, "usd": state.usd, "shares": state.shares},
         "price_usd_per_btc": state.usd * 1_000_000 / state.sat if state.sat else 0,
         "k": state.sat * state.usd,
-        "fee_bps": 100,
+        "fee_bps": FEE_BPS,
         "events": list(state.events),
         "initialized": state.shares > 0,
     }
@@ -79,7 +89,11 @@ def _error_response(error: OperationError) -> JSONResponse:
             "error": error.code,
             "code": error.code,
             "message": str(error),
+            "input_received": error.input_received,
             "refunds": {asset.value: token for asset, token in error.refunds.items()},
+            "refund_amounts": {
+                asset.value: amount for asset, amount in error.refund_amounts.items()
+            },
         },
     )
 
@@ -178,11 +192,31 @@ def create_app(service: PoolService | None = None) -> FastAPI:
         except OperationError as error:
             return _error_response(error)
 
+    @app.post("/api/swap/quote")
+    async def swap_quote(payload: SwapQuoteRequest, request: Request):
+        try:
+            result = await current(request).quote_swap(
+                payload.direction, payload.amount
+            )
+            return {
+                "amount_in": result.amount_in,
+                "amount_out": result.amount_out,
+                "price_impact_bps": result.price_impact_bps,
+                "quote_deadline_ms": result.quote_deadline_ms,
+                "fee_bps": FEE_BPS,
+            }
+        except OperationError as error:
+            return _error_response(error)
+
     @app.post("/api/swap")
     async def swap(payload: SwapRequest, request: Request):
         try:
             result = await current(request).swap(
-                payload.direction, payload.token, str(payload.operation_id)
+                payload.direction,
+                payload.token,
+                str(payload.operation_id),
+                minimum_amount_out=payload.minimum_amount_out,
+                quote_deadline_ms=payload.quote_deadline_ms,
             )
             return {
                 "amount_in": result.amount_in,
@@ -248,9 +282,7 @@ def create_app(service: PoolService | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
-        return FileResponse(
-            site / "index.html", headers={"Cache-Control": "no-store"}
-        )
+        return FileResponse(site / "index.html", headers={"Cache-Control": "no-store"})
 
     @app.get("/app.js", include_in_schema=False)
     async def app_javascript() -> FileResponse:
@@ -258,20 +290,22 @@ def create_app(service: PoolService | None = None) -> FastAPI:
 
     @app.get("/styles.css", include_in_schema=False)
     async def stylesheet() -> FileResponse:
-        return FileResponse(
-            site / "styles.css", headers={"Cache-Control": "no-store"}
-        )
+        return FileResponse(site / "styles.css", headers={"Cache-Control": "no-store"})
 
     @app.get("/mints.js", include_in_schema=False)
     async def mint_javascript() -> FileResponse:
-        return FileResponse(
-            site / "mints.js", headers={"Cache-Control": "no-store"}
-        )
+        return FileResponse(site / "mints.js", headers={"Cache-Control": "no-store"})
+
+    @app.get("/sao-joao.js", include_in_schema=False)
+    async def loading_javascript() -> FileResponse:
+        return FileResponse(site / "sao-joao.js", headers={"Cache-Control": "no-store"})
+
+    @app.get("/amm.js", include_in_schema=False)
+    async def amm_javascript() -> FileResponse:
+        return FileResponse(site / "amm.js", headers={"Cache-Control": "no-store"})
 
     @app.get("/wallet.js", include_in_schema=False)
     async def wallet_javascript() -> FileResponse:
-        return FileResponse(
-            site / "wallet.js", headers={"Cache-Control": "no-store"}
-        )
+        return FileResponse(site / "wallet.js", headers={"Cache-Control": "no-store"})
 
     return app

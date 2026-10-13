@@ -7,6 +7,7 @@ import {
   integerSqrt,
   poolPriceUsdPerBtc,
   quoteExactIn,
+  minimumAmountOut,
   sharesForDeposit
 } from "./amm.js";
 
@@ -67,4 +68,14 @@ test("redemption rejects shares above total supply", () => {
 
 test("reference reserves price bitcoin at fifty thousand dollars", () => {
   assert.equal(poolPriceUsdPerBtc(1_000_000n, 50_000n), 50_000);
+});
+
+test("slippage floor never loses a fractional output unit", () => {
+  assert.equal(minimumAmountOut(1n, 100n), 1n);
+  assert.equal(minimumAmountOut(101n, 100n), 100n);
+  assert.equal(minimumAmountOut(4504n, 100n), 4459n);
+  assert.equal(minimumAmountOut(90081n, 0n), 90081n);
+  assert.equal(minimumAmountOut(9_007_199_254_740_991n, 1n), 9_006_298_534_815_517n);
+  assert.throws(() => minimumAmountOut(1n, 10000n));
+  assert.throws(() => minimumAmountOut(0n, 100n));
 });

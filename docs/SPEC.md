@@ -215,7 +215,8 @@ PoC, preparar, cancelar e bloquear em caso ambíguo é a fronteira correta.
   shares, quantidade trocada internamente e contraparte;
 - `POST /api/liquidity/deposit-single`: recebe `{operation_id, asset, token}` e
   devolve LP por um depósito single-sided;
-- `POST /api/swap`: recebe `{operation_id, direction, token}` e devolve o outro
+- `POST /api/swap`: recebe `{operation_id, direction, token, minimum_amount_out}`
+  e aceita `quote_deadline_ms` opcional (Unix em milissegundos) e devolve o outro
   ativo;
 - `POST /api/liquidity/redeem`: recebe `{operation_id, lp_token}` e devolve SAT
   + USD;
@@ -250,3 +251,29 @@ mint, depósito, ambos os swaps e resgate sem imprimir os tokens. O comando
 - segurança e operação de produção.
 - slippage protection (`minimum_amount_out`), acompanhada na
   [issue #1](https://github.com/brenorb/cashu-amm/issues/1).
+
+
+### Proteção de slippage
+
+`POST /api/swap/quote` recebe `{direction, amount}` sem consumir um token e
+retorna saída estimada, impacto em basis points e prazo de 30 segundos.
+O impacto inclui a curva e o arredondamento, mas exclui a taxa AMM de 1%.
+O amount informado é uma estimativa da face do token antes das taxas Cashu.
+
+A mutação exige `minimum_amount_out` inteiro não negativo na unidade do ativo
+recebido (SAT ou centavos USD). Zero desliga o piso por escolha explícita do
+cliente; a UI exige pelo menos uma unidade. O servidor mantém a divisão inteira
+arredondada para baixo e compara a saída calculada sobre o input líquido recebido.
+A UI arredonda seu mínimo para cima, sem alterar o arredondamento da pool.
+
+Um prazo expirado antes do receive rejeita sem consumir o token. Se expirar no
+receive, ou se a saída ficar abaixo do piso, o backend devolve o input líquido
+recebido e não altera as reservas. `refund_amounts` informa esse valor, descontadas
+as taxas de input da mint. O prazo limita a aceitação/cálculo do trade, não promete
+que a emissão do output termine antes dele.
+
+O cache inclui as restrições na identidade da operação e guarda tanto sucesso
+quanto rejeições após receive. Repetir o mesmo ID/payload recupera o mesmo token
+de output ou refund, mesmo depois da expiração, sem outro receive. Um ID concluído
+não aceita outro mínimo ou prazo. Falhas de compensação/persistência deixam o
+journal pendente e exigem recuperação pelo operador antes de novas mutações.

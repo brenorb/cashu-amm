@@ -80,6 +80,10 @@ try {
   const satTrade = await mint("sat", 501);
   await page.locator('.wallet-panel [data-wallet-use="sat"]').click();
   assert.equal(await page.locator("#trade-token-input").inputValue(), satTrade);
+  // Small integration-test tokens pay fixed Cashu input fees; use an explicit
+  // tolerance and wait until the protected quote is visible before submission.
+  await page.locator("#trade-slippage").fill("10.00");
+  await page.waitForFunction(() => document.querySelector("#trade-minimum-output")?.textContent !== "—");
   await page.locator("#trade-form button[type=submit]").click();
   await page.waitForFunction(() =>
     document.querySelector("#trade-output-token")?.textContent?.startsWith("cashu")
@@ -90,6 +94,10 @@ try {
   const usdTrade = await mint("usd", 51);
   await page.locator('.wallet-panel [data-wallet-use="usd"]').click();
   assert.equal(await page.locator("#trade-token-input").inputValue(), usdTrade);
+  // Small integration-test tokens pay fixed Cashu input fees; use an explicit
+  // tolerance and wait until the protected quote is visible before submission.
+  await page.locator("#trade-slippage").fill("10.00");
+  await page.waitForFunction(() => document.querySelector("#trade-minimum-output")?.textContent !== "—");
   await page.locator("#trade-form button[type=submit]").click();
   await page.waitForFunction(
     (previous) => {

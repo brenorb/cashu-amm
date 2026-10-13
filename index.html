@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A Cashu-native BTC/USD automated market maker proof of concept." />
     <title>Cashu AMM — BTC / USD test pool</title>
-    <link rel="stylesheet" href="./styles.css?v=20260806-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261013-1" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -208,24 +208,39 @@
                 <div><textarea class="token-entry" id="trade-token-input" rows="4" placeholder="Paste a Cashu SAT token"></textarea></div>
               </label>
 
+              <div class="trade-protection">
+                <label class="amount-field">
+                  <span>Entire token face amount</span>
+                  <div><input id="trade-input-amount" type="number" min="1" step="1" required placeholder="Amount" /><b id="trade-input-unit">sat</b></div>
+                </label>
+                <label class="amount-field">
+                  <span>Maximum slippage</span>
+                  <div><input id="trade-slippage" type="number" min="0" max="99.99" step="0.01" value="1.00" required /><b>%</b></div>
+                </label>
+              </div>
+
               <div class="trade-arrow" aria-hidden="true">↓</div>
 
               <div class="output-field">
                 <span>You receive</span>
-                <div><strong id="trade-output-amount">—</strong><b id="trade-output-unit">USD units</b></div>
+                <div><strong id="trade-estimated-amount">—</strong><b id="trade-output-unit">USD cents</b></div>
               </div>
 
               <div class="quote-sheet">
-                <div><span>Output format</span><strong>Cashu bearer token</strong></div>
+                <div><span>Minimum received</span><strong id="trade-minimum-output">—</strong></div>
+                <div><span>Price impact</span><strong id="trade-price-impact">—</strong></div>
                 <div><span>Pool fee</span><strong>1%</strong></div>
-                <div><span>Execution</span><strong>Current pool state</strong></div>
               </div>
+
+              <p class="trade-quote-note" id="trade-quote-note" role="status"></p>
+              <button class="field-action" id="trade-refresh-quote" type="button">Refresh quote</button>
 
               <div class="token-receipt" id="trade-token-receipt" hidden>
                 <div>
-                  <p class="eyebrow">TRADE OUTPUT</p>
+                  <p class="eyebrow">LAST COMPLETED TRADE</p>
                   <strong id="trade-token-title">Your Cashu token is ready</strong>
                 </div>
+                <p>Received <strong id="trade-output-amount">—</strong> units</p>
                 <code id="trade-output-token"></code>
                 <button type="button" id="copy-trade-token">Copy received token</button>
                 <small>This token is the asset you bought and was also saved in the browser wallet.</small>
@@ -417,6 +432,6 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" crossorigin="anonymous"></script>
-    <script type="module" src="./app.js?v=20260806-1"></script>
+    <script type="module" src="./app.js?v=20261013-1"></script>
   </body>
 </html>

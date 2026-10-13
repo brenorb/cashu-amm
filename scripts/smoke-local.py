@@ -65,10 +65,14 @@ def main() -> None:
     assert request("/api/pool")["pool"] == after_deposit["pool"]
 
     sat_trade = mint("sat", 501)
+    sat_quote = request("/api/swap/quote", {"direction": "sat-usd", "amount": 501})
     sat_swap_payload = {
         "operation_id": str(uuid4()),
         "direction": "sat-usd",
         "token": sat_trade,
+        # These small test amounts need room for Cashu's input fees.
+        "minimum_amount_out": (int(sat_quote["amount_out"]) * 9000 + 9999) // 10000,
+        "quote_deadline_ms": sat_quote["quote_deadline_ms"],
     }
     sat_to_usd = request("/api/swap", sat_swap_payload)
     after_sat_swap = request("/api/pool")
@@ -77,10 +81,13 @@ def main() -> None:
     assert request("/api/pool")["pool"] == after_sat_swap["pool"]
 
     usd_trade = mint("usd", 51)
+    usd_quote = request("/api/swap/quote", {"direction": "usd-sat", "amount": 51})
     usd_swap_payload = {
         "operation_id": str(uuid4()),
         "direction": "usd-sat",
         "token": usd_trade,
+        "minimum_amount_out": (int(usd_quote["amount_out"]) * 9000 + 9999) // 10000,
+        "quote_deadline_ms": usd_quote["quote_deadline_ms"],
     }
     usd_to_sat = request("/api/swap", usd_swap_payload)
     after_usd_swap = request("/api/pool")
