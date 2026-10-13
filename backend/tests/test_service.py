@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from backend.journal import OperationJournal
 from backend.idempotency import OperationResultStore
+from backend.journal import OperationJournal
 from backend.service import (
     Asset,
     CashuGateway,
