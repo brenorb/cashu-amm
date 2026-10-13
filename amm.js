@@ -106,3 +106,11 @@ export function poolPriceUsdPerBtc(reserveSat, reserveUsd) {
   requirePositive(reserveUsd, "reserveUsd");
   return Number(reserveUsd) * 1_000_000 / Number(reserveSat);
 }
+
+// Round the user floor up so fractional base units cannot weaken the tolerance.
+export function minimumAmountOut(estimatedOut, slippageBps) {
+  requirePositive(estimatedOut, "estimatedOut");
+  requireNonNegative(slippageBps, "slippageBps");
+  if (slippageBps >= BPS) throw new RangeError("slippage must be below 100%");
+  return (estimatedOut * (BPS - slippageBps) + BPS - 1n) / BPS;
+}

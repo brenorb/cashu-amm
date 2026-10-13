@@ -808,3 +808,8 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }
+
+.trade-protection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.trade-protection input { min-width: 0; }
+.trade-quote-note { font-size: 11px; line-height: 1.6; color: var(--ink-soft); overflow-wrap: anywhere; }
+@media (max-width: 620px) { .trade-protection { grid-template-columns: 1fr; } }

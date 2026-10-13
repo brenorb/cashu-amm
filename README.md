@@ -57,7 +57,9 @@ docker compose down
    pool já estiver inicializada. A pool faz um zap interno de parte do token e
    emite as shares correspondentes.
 3. Use **Sell BTC** ou **Buy BTC** na carteira para carregar o token mais recente
-   no trade. O ativo recebido substitui economicamente o token gasto.
+   no trade. Confira saída estimada, mínimo recebido e impacto; ajuste a tolerância
+   e execute enquanto a cotação estiver válida. O ativo recebido substitui
+   economicamente o token gasto.
 4. Use **Redeem** na carteira para devolver o LP e salvar os dois ativos pro rata.
 
 A carteira é propositalmente mínima: persiste em `localStorage` somente bearer
@@ -69,6 +71,33 @@ O backend contabiliza o valor que realmente entrou na wallet depois das fees de
 input Cashu. Essas fees são da mint e são separadas da taxa de 1% do AMM.
 Quando uma operação pode ser desfeita com segurança, a resposta de erro mostra
 os TokenV4 de refund para o usuário copiar.
+
+## Mínimo de saída e cotação
+
+A interface consulta `POST /api/swap/quote` com direção e face do token. Para
+um token colado manualmente, informe sua quantidade inteira (SAT ou centavos
+USD); tokens conhecidos pela carteira preenchem esse valor automaticamente.
+O trade consome o token inteiro. A estimativa precede taxas de input Cashu, e o
+impacto inclui curva/arredondamento, separado da taxa AMM de 1%.
+
+O cliente escolhe `minimum_amount_out` e pode enviar `quote_deadline_ms` (Unix em
+milissegundos). O piso é obrigatório na API; zero o desliga explicitamente. A UI
+sempre envia um piso positivo, calculado com a tolerância escolhida, e o prazo de
+30 segundos devolvido pela cotação. Atualize a cotação quando ela expirar.
+
+Saída abaixo do mínimo ou prazo expirado durante receive retorna HTTP 409 com
+`refunds` e `refund_amounts`: tokens de devolução e a quantidade líquida realmente
+recebida, após taxas Cashu. As reservas não mudam. Um prazo já expirado antes do
+receive deixa o token original sem consumo. `input_received` distingue esses
+casos; se a devolução falhar, a UI não mantém o input gasto como saldo disponível.
+O journal exige recuperação pelo operador antes de novas mutações pendentes.
+
+Mantenha o mesmo `operation_id`, token, mínimo e prazo em retries. Outputs e
+refunds concluídos são recuperáveis do cache durável mesmo após expiração. Na
+página aberta, uma falha de rede/5xx mantém os parâmetros e oferece **Retry saved
+trade**, sem renovar o mínimo ou o prazo automaticamente. O ID também deve ser
+preservado por clientes de API; a página não oferece recuperação automática de
+uma operação pendente após um hard reload do navegador.
 
 ## Verificação
 

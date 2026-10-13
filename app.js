@@ -1,3 +1,4 @@
+import { minimumAmountOut } from "./amm.js?v=20261013-1";
 import { inspectMint } from "./mints.js?v=20260805-3";
 import { createTokenWallet } from "./wallet.js?v=20260805-3";
 import { setupSaoJoao } from "./sao-joao.js?v=20260806-1";
@@ -9,6 +10,8 @@ let mintAsset = "sat";
 let singleAsset = "sat";
 let lastMintQuote = null;
 let singleQuoteSequence = 0;
+let tradeQuoteSequence = 0;
+let tradeQuote = null;
 const pendingOperations = new Map();
 const wallet = createTokenWallet(window.localStorage);
 
@@ -148,6 +151,7 @@ function renderWallet() {
   }
   byId("use-wallet-trade").disabled = wallet.list(walletInputAsset()).length === 0;
   renderSingleLiquidityEstimate();
+  renderTradeEstimate();
 }
 
 function storeWalletToken(asset, amount, token) {
@@ -178,11 +182,12 @@ async function mintDirectlyToWallet(asset, amount) {
   throw new Error(`${asset.toUpperCase()} test mint did not settle in time`);
 }
 
-function replaceWalletRefund(asset, originalToken, refundToken) {
+function replaceWalletRefund(asset, originalToken, refundToken, refundedAmount) {
   const original = wallet.find(originalToken);
-  if (!original || original.asset !== asset) return;
-  wallet.remove(originalToken);
-  storeWalletToken(asset, original.amount, refundToken);
+  const amount = refundedAmount ?? (original?.asset === asset ? original.amount : null);
+  if (!Number.isSafeInteger(amount) || amount <= 0) return;
+  if (original?.asset === asset) wallet.remove(originalToken);
+  storeWalletToken(asset, amount, refundToken);
 }
 
 function renderRedemptionQuote() {
@@ -220,14 +225,14 @@ function setMessage(id, text, type = "") {
   element.className = `form-message ${type}`.trim();
 }
 
-function showRefunds(refunds = {}, originals = {}) {
+function showRefunds(refunds = {}, originals = {}, amounts = {}) {
   const entries = Object.entries(refunds).filter(([, token]) => token);
   const receipt = byId("refund-receipt");
   receipt.hidden = entries.length === 0;
   const outputs = byId("refund-token-value");
   outputs.replaceChildren();
   for (const [asset, token] of entries) {
-    replaceWalletRefund(asset, originals[asset], token);
+    replaceWalletRefund(asset, originals[asset], token, amounts[asset]);
     const row = document.createElement("div");
     row.className = "token-output-row";
     const label = document.createElement("b");
@@ -258,6 +263,7 @@ async function fetchJson(path, options = {}) {
   if (!response.ok) {
     const error = new Error(body.message || body.error || `HTTP ${response.status}`);
     error.body = body;
+    error.status = response.status;
     throw error;
   }
   return body;
@@ -267,7 +273,7 @@ async function postOperation(kind, path, payload) {
   const fingerprint = JSON.stringify(payload);
   let pending = pendingOperations.get(kind);
   if (!pending || pending.fingerprint !== fingerprint) {
-    pending = { fingerprint, operationId: crypto.randomUUID() };
+    pending = { fingerprint, operationId: crypto.randomUUID(), payload: { ...payload } };
     pendingOperations.set(kind, pending);
   }
   try {
@@ -278,10 +284,10 @@ async function postOperation(kind, path, payload) {
     pendingOperations.delete(kind);
     return result;
   } catch (error) {
-    // An HTTP error means the server answered. A network error may mean the
+    // A 4xx response is definitive. A network or 5xx failure may mean the
     // operation committed but its response was lost, so the next click reuses
     // the same ID and receives the cached bearer tokens.
-    if (error.body) pendingOperations.delete(kind);
+    if (error.body && error.status < 500) pendingOperations.delete(kind);
     throw error;
   }
 }
@@ -312,6 +318,7 @@ function render() {
   renderCurve(pool, spot, initialized);
   renderLedger(snapshot.events || []);
   renderRedemptionQuote();
+  setTradeControls(pendingOperations.has("swap"));
 }
 
 function renderCurve(pool, spot, initialized) {
@@ -514,13 +521,18 @@ function wireRedemption() {
 }
 
 function selectTradeDirection(nextDirection, openTrade = false) {
+  if (pendingOperations.has("swap")) {
+    setMessage("trade-message", "Retry the saved trade to recover its result before starting another trade.", "error");
+    return;
+  }
   direction = nextDirection;
   for (const candidate of document.querySelectorAll("[data-direction]")) {
     candidate.classList.toggle("active", candidate.dataset.direction === direction);
   }
   const inputAsset = walletInputAsset();
   byId("trade-token-input").placeholder = `Paste a Cashu ${inputAsset.toUpperCase()} token`;
-  byId("trade-output-unit").textContent = direction === "sat-usd" ? "USD units" : "sat";
+  byId("trade-output-unit").textContent = direction === "sat-usd" ? "USD cents" : "sat";
+  byId("trade-input-unit").textContent = direction === "sat-usd" ? "sat" : "USD cents";
   byId("trade-form").querySelector(".primary-action span").textContent = direction === "sat-usd"
     ? "Sell BTC for USD"
     : "Buy BTC with USD";
@@ -532,36 +544,133 @@ function selectTradeDirection(nextDirection, openTrade = false) {
   }
 }
 
+function tradeContext() {
+  const token = byId("trade-token-input").value.trim();
+  const entry = wallet.find(token);
+  const knownAmount = entry?.asset === walletInputAsset() ? entry.amount : null;
+  if (knownAmount) byId("trade-input-amount").value = knownAmount;
+  byId("trade-input-amount").readOnly = !!knownAmount;
+  const amount = Number(byId("trade-input-amount").value);
+  const tolerance = Number(byId("trade-slippage").value);
+  if (!token || !Number.isSafeInteger(amount) || amount <= 0
+    || !byId("trade-slippage").validity.valid || !Number.isFinite(tolerance)) return null;
+  return { token, amount, slippageBps: Math.round(tolerance * 100), key: JSON.stringify({ token, amount, direction }) };
+}
+
+function formatTradeAmount(amount) {
+  return direction === "sat-usd" ? `${formatUsd(amount)} USD` : `${formatInteger(amount)} sat`;
+}
+
+function setTradeControls(locked, submitting = false) {
+  for (const element of document.querySelectorAll("#trade-form input, #trade-form textarea, #use-wallet-trade, #trade-refresh-quote")) {
+    element.disabled = locked;
+  }
+  byId("use-wallet-trade").disabled = locked || wallet.list(walletInputAsset()).length === 0;
+  for (const button of document.querySelectorAll("[data-direction]")) button.disabled = locked || !snapshot?.initialized;
+  const submit = byId("trade-form").querySelector('button[type="submit"]');
+  submit.disabled = submitting || !snapshot?.initialized;
+  submit.querySelector("span").textContent = locked
+    ? (submitting ? "Executing trade…" : "Retry saved trade")
+    : (direction === "sat-usd" ? "Sell BTC for USD" : "Buy BTC with USD");
+}
+
+async function renderTradeEstimate(force = false) {
+  if (pendingOperations.has("swap")) return;
+  const sequence = ++tradeQuoteSequence;
+  const context = tradeContext();
+  byId("trade-estimated-amount").textContent = "—";
+  byId("trade-minimum-output").textContent = "—";
+  byId("trade-price-impact").textContent = "—";
+  if (!snapshot?.initialized || !context) {
+    tradeQuote = null;
+    byId("trade-quote-note").textContent = "Load a wallet token or enter the entire pasted token's face amount to get a quote.";
+    return;
+  }
+  byId("trade-quote-note").textContent = "Getting a quote…";
+  try {
+    let quote = tradeQuote;
+    if (force || quote?.context !== context.key || Date.now() >= quote.quote_deadline_ms) {
+      const result = await fetchJson("/api/swap/quote", { method: "POST", body: JSON.stringify({ direction, amount: context.amount }) });
+      if (sequence !== tradeQuoteSequence || pendingOperations.has("swap")) return;
+      if (!Number.isSafeInteger(result.amount_out) || result.amount_out <= 0
+        || !Number.isSafeInteger(result.quote_deadline_ms)) throw new Error("Quote amount is outside supported browser precision.");
+      quote = { ...result, context: context.key };
+    }
+    if (sequence !== tradeQuoteSequence) return;
+    tradeQuote = quote;
+    const minimum = minimumAmountOut(BigInt(quote.amount_out), BigInt(context.slippageBps));
+    byId("trade-estimated-amount").textContent = formatInteger(quote.amount_out);
+    byId("trade-minimum-output").textContent = formatTradeAmount(minimum);
+    byId("trade-price-impact").textContent = `${(quote.price_impact_bps / 100).toFixed(2)}%`;
+    byId("trade-quote-note").textContent = `Valid until ${new Date(quote.quote_deadline_ms).toLocaleTimeString()}. Estimate before Cashu input fees; the whole token is spent. Curve impact includes rounding and excludes the listed pool fee.`;
+  } catch (error) {
+    if (sequence !== tradeQuoteSequence) return;
+    tradeQuote = null;
+    byId("trade-quote-note").textContent = error.message;
+  }
+}
+
 function wireTrade() {
   for (const button of document.querySelectorAll("[data-direction]")) {
     button.addEventListener("click", () => {
       selectTradeDirection(button.dataset.direction, button.hasAttribute("data-open-trade"));
     });
   }
+  for (const id of ["trade-token-input", "trade-input-amount", "trade-slippage"]) {
+    byId(id).addEventListener("input", () => renderTradeEstimate());
+  }
+  byId("trade-refresh-quote").addEventListener("click", () => renderTradeEstimate(true));
   byId("trade-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    setMessage("trade-message", "Executing against the current liquidity curve…");
-    const inputToken = byId("trade-token-input").value.trim();
-    const inputAsset = walletInputAsset();
-    const outputAsset = inputAsset === "sat" ? "usd" : "sat";
+    let payload = pendingOperations.get("swap")?.payload;
     try {
-      const result = await postOperation("swap", "/api/swap", {
-        direction, token: inputToken
-      });
-      wallet.remove(inputToken);
+      if (!payload) {
+        const context = tradeContext();
+        if (!context || tradeQuote?.context !== context.key) throw new Error("Get a quote for this token before submitting.");
+        if (Date.now() >= tradeQuote.quote_deadline_ms) throw new Error("Quote expired. Refresh the quote before submitting.");
+        payload = {
+          direction, token: context.token,
+          minimum_amount_out: Number(minimumAmountOut(BigInt(tradeQuote.amount_out), BigInt(context.slippageBps))),
+          quote_deadline_ms: tradeQuote.quote_deadline_ms
+        };
+      }
+      const inputAsset = payload.direction === "sat-usd" ? "sat" : "usd";
+      const outputAsset = inputAsset === "sat" ? "usd" : "sat";
+      setTradeControls(true, true);
+      setMessage("trade-message", "Executing with your saved output minimum…");
+      const result = await postOperation("swap", "/api/swap", payload);
+      byId("trade-token-input").value = "";
+      byId("trade-input-amount").value = "";
+      wallet.remove(payload.token);
       storeWalletToken(outputAsset, result.amount_out, result.output_token);
       byId("trade-output-token").textContent = result.output_token;
       byId("trade-output-amount").textContent = formatInteger(result.amount_out);
-      byId("trade-token-title").textContent = direction === "sat-usd"
-        ? "Your Cashu USD token is ready"
-        : "Your Cashu SAT token is ready";
+      byId("trade-token-title").textContent = payload.direction === "sat-usd"
+        ? "Your Cashu USD token is ready" : "Your Cashu SAT token is ready";
       byId("trade-token-receipt").hidden = false;
       setMessage("trade-message", `Trade complete: ${formatInteger(result.amount_out)} units saved to this browser.`, "success");
       snapshot = result.pool;
       render();
     } catch (error) {
-      const refunded = showRefunds(error.body?.refunds, { [inputAsset]: inputToken });
-      setMessage("trade-message", refunded ? `${error.message} The returned input token is shown below.` : error.message, "error");
+      const inputAsset = payload?.direction === "usd-sat" ? "usd" : "sat";
+      const refunded = showRefunds(error.body?.refunds, { [inputAsset]: payload?.token }, error.body?.refund_amounts);
+      if (refunded) {
+        byId("trade-token-input").value = error.body.refunds[inputAsset];
+        byId("trade-input-amount").value = error.body.refund_amounts?.[inputAsset] || "";
+        tradeQuote = null;
+        renderTradeEstimate();
+      }
+      if (error.body?.input_received && !refunded) {
+        wallet.remove(payload?.token);
+        renderWallet();
+      }
+      const message = pendingOperations.has("swap")
+        ? "The response was interrupted. Retry the saved trade to recover the same output or refund."
+        : (refunded ? `${error.message} The returned input token is shown below and loaded for a new quote.`
+          : error.body?.input_received ? `${error.message} Input was received but no refund was issued. Operator recovery is required.` : error.message);
+      setMessage("trade-message", message, "error");
+    } finally {
+      setTradeControls(pendingOperations.has("swap"));
     }
   });
 }
@@ -602,10 +711,13 @@ function wireMint() {
 }
 
 function loadWalletTrade(asset) {
+  if (pendingOperations.has("swap")) return;
   const entry = wallet.latest(asset);
   if (!entry) return;
   selectTradeDirection(asset === "sat" ? "sat-usd" : "usd-sat", true);
   byId("trade-token-input").value = entry.token;
+  byId("trade-input-amount").value = entry.amount;
+  renderTradeEstimate();
   setMessage("trade-message", `${formatInteger(entry.amount)} ${asset.toUpperCase()} loaded from this browser.`, "success");
 }
 

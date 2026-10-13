@@ -92,6 +92,7 @@ async def test_invalid_request_is_rejected_without_mutating_pool() -> None:
             json={
                 "operation_id": "123e4567-e89b-12d3-a456-426614174000",
                 "direction": "eur-gbp",
+                "minimum_amount_out": 0,
                 "token": "sat-token",
             },
         )
@@ -157,7 +158,14 @@ async def test_frontend_assets_are_not_cached() -> None:
     ) as client:
         responses = [
             await client.get(path)
-            for path in ("/app.js", "/styles.css", "/mints.js", "/wallet.js")
+            for path in (
+                "/app.js",
+                "/styles.css",
+                "/mints.js",
+                "/wallet.js",
+                "/amm.js",
+                "/sao-joao.js",
+            )
         ]
 
     assert all(response.status_code == 200 for response in responses)
@@ -219,7 +227,12 @@ async def test_mutation_requires_operation_id() -> None:
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.post(
-            "/api/swap", json={"direction": "sat-usd", "token": "sat-token"}
+            "/api/swap",
+            json={
+                "direction": "sat-usd",
+                "token": "sat-token",
+                "minimum_amount_out": 0,
+            },
         )
 
     assert response.status_code == 422
