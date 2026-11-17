@@ -145,8 +145,13 @@ class PoolService:
             except Exception as error:
                 refunds = await self._refund(self.sat_gateway, Asset.SAT, sat_amount)
                 self._fail(journal_id, error, refunds, owed={Asset.SAT})
-                raise OperationError(
-                    "deposit_usd_failed", str(error), refunds=refunds
+                raise self._failure(
+                    operation_id,
+                    "deposit",
+                    request,
+                    "deposit_usd_failed",
+                    error,
+                    refunds,
                 ) from error
 
             try:
@@ -172,9 +177,16 @@ class PoolService:
                 refunds.update(
                     await self._refund(self.usd_gateway, Asset.USD, usd_amount)
                 )
-                self._fail(journal_id, error, refunds, owed={Asset.SAT, Asset.USD})
-                raise OperationError(
-                    "deposit_share_failed", str(error), refunds=refunds
+                self._fail(
+                    journal_id, error, refunds, owed={Asset.SAT, Asset.USD}
+                )
+                raise self._failure(
+                    operation_id,
+                    "deposit",
+                    request,
+                    "deposit_share_failed",
+                    error,
+                    refunds,
                 ) from error
 
             self.state = PoolState(
@@ -263,8 +275,13 @@ class PoolService:
             except Exception as error:
                 refunds = await self._refund(gateway, selected, amount)
                 self._fail(journal_id, error, refunds, owed={selected})
-                raise OperationError(
-                    "single_deposit_failed", str(error), refunds=refunds
+                raise self._failure(
+                    operation_id,
+                    "deposit_single",
+                    request,
+                    "single_deposit_failed",
+                    error,
+                    refunds,
                 ) from error
 
             next_sat = self.state.sat + amount if selected is Asset.SAT else self.state.sat
@@ -344,8 +361,13 @@ class PoolService:
             except Exception as error:
                 refunds = await self._refund(input_gateway, input_asset, amount_in)
                 self._fail(journal_id, error, refunds, owed={input_asset})
-                raise OperationError(
-                    "swap_output_failed", str(error), refunds=refunds
+                raise self._failure(
+                    operation_id,
+                    "swap",
+                    request,
+                    "swap_output_failed",
+                    error,
+                    refunds,
                 ) from error
 
             self.state = self._replace_reserves(
@@ -439,8 +461,13 @@ class PoolService:
                     owed={Asset.LP},
                     keep_pending=not outputs_cancelled,
                 )
-                raise OperationError(
-                    "redeem_output_failed", str(error), refunds=refunds
+                raise self._failure(
+                    operation_id,
+                    "redeem",
+                    request,
+                    "redeem_output_failed",
+                    error,
+                    refunds,
                 ) from error
 
             self.state = PoolState(
@@ -576,9 +603,51 @@ class PoolService:
         if operation_id is None or self.results is None:
             return None
         try:
-            return self.results.load(operation_id, operation, payload)
+            cached = self.results.load(operation_id, operation, payload)
         except ValueError as error:
             raise OperationError("operation_id_conflict", str(error)) from error
+        failure = cached.get("failure") if cached is not None else None
+        if isinstance(failure, dict):
+            raise OperationError(
+                str(failure["code"]),
+                str(failure["message"]),
+                refunds={
+                    Asset(asset): str(token)
+                    for asset, token in failure["refunds"].items()
+                },
+            )
+        return cached
+
+    def _failure(
+        self,
+        operation_id: str | None,
+        operation: str,
+        payload: dict[str, object],
+        code: str,
+        error: Exception,
+        refunds: dict[Asset, str],
+    ) -> OperationError:
+        """Build the error for a failed operation and store any refunds by ID.
+
+        The refund tokens exist only in this response. When it is lost, the
+        browser retries with the same operation_id after the mint has already
+        swapped its input, so the retry must replay the refunds.
+        """
+        failure = OperationError(code, str(error), refunds=refunds)
+        if refunds:
+            self._store_result(
+                operation_id,
+                operation,
+                payload,
+                {
+                    "failure": {
+                        "code": code,
+                        "message": str(error),
+                        "refunds": {a.value: t for a, t in refunds.items()},
+                    }
+                },
+            )
+        return failure
 
     def _store_result(
         self,

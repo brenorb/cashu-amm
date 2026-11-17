@@ -382,3 +382,26 @@ async def test_partial_refund_keeps_journal_pending(tmp_path) -> None:
     assert len(journal.pending()) == 1
     assert pool.state.shares == 223_606
 
+
+@pytest.mark.asyncio
+async def test_retry_after_lost_refund_response_returns_same_refund(
+    tmp_path,
+) -> None:
+    # Custody.tla ClientGetsWhatItIsOwed: the response that carried the
+    # refund is lost and the browser retries with the same operation_id.
+    pool, sat, usd, _share = service()
+    pool.results = OperationResultStore(tmp_path / "completed")
+    operation_id = "123e4567-e89b-12d3-a456-426614174001"
+    usd.fail_receive = True
+
+    with pytest.raises(OperationError) as first:
+        await pool.deposit("sat-token", "usd-token", operation_id)
+    del sat.received["sat-token"]  # the mint has swapped the input proofs
+
+    with pytest.raises(OperationError) as retry:
+        await pool.deposit("sat-token", "usd-token", operation_id)
+
+    assert first.value.refunds == {Asset.SAT: "cashuB-fake-100000"}
+    assert retry.value.code == first.value.code
+    assert retry.value.refunds == first.value.refunds
+    assert sat.sent == [100_000]
