@@ -363,3 +363,22 @@ async def test_operation_id_cannot_be_reused_with_different_payload(tmp_path) ->
         await pool.swap("sat-usd", "another-token", operation_id)
 
     assert error.value.code == "operation_id_conflict"
+
+
+@pytest.mark.asyncio
+async def test_partial_refund_keeps_journal_pending(tmp_path) -> None:
+    # Custody.tla NoOrphanedFunds: the deposit is refused, the SAT refund
+    # succeeds and the USD refund fails. The pool still holds the USD, which
+    # is in neither the pool state nor a refund, so the journal must stay.
+    pool, sat, usd, _share, journal = journal_service(tmp_path)
+    sat.received["sat-token"] = 100_000
+    usd.received["usd-token"] = 10_000
+    usd.fail_send = True
+
+    with pytest.raises(OperationError) as error:
+        await pool.deposit("sat-token", "usd-token")
+
+    assert error.value.refunds == {Asset.SAT: "cashuB-fake-100000"}
+    assert len(journal.pending()) == 1
+    assert pool.state.shares == 223_606
+

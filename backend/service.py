@@ -144,7 +144,7 @@ class PoolService:
                 self._update(journal_id, stage="both_received", usd_amount=usd_amount)
             except Exception as error:
                 refunds = await self._refund(self.sat_gateway, Asset.SAT, sat_amount)
-                self._fail(journal_id, error, refunds)
+                self._fail(journal_id, error, refunds, owed={Asset.SAT})
                 raise OperationError(
                     "deposit_usd_failed", str(error), refunds=refunds
                 ) from error
@@ -172,7 +172,7 @@ class PoolService:
                 refunds.update(
                     await self._refund(self.usd_gateway, Asset.USD, usd_amount)
                 )
-                self._fail(journal_id, error, refunds)
+                self._fail(journal_id, error, refunds, owed={Asset.SAT, Asset.USD})
                 raise OperationError(
                     "deposit_share_failed", str(error), refunds=refunds
                 ) from error
@@ -262,7 +262,7 @@ class PoolService:
                 )
             except Exception as error:
                 refunds = await self._refund(gateway, selected, amount)
-                self._fail(journal_id, error, refunds)
+                self._fail(journal_id, error, refunds, owed={selected})
                 raise OperationError(
                     "single_deposit_failed", str(error), refunds=refunds
                 ) from error
@@ -343,7 +343,7 @@ class PoolService:
                 self._update(journal_id, stage="output_sent", amount_out=amount_out)
             except Exception as error:
                 refunds = await self._refund(input_gateway, input_asset, amount_in)
-                self._fail(journal_id, error, refunds)
+                self._fail(journal_id, error, refunds, owed={input_asset})
                 raise OperationError(
                     "swap_output_failed", str(error), refunds=refunds
                 ) from error
@@ -436,6 +436,7 @@ class PoolService:
                     journal_id,
                     error,
                     refunds,
+                    owed={Asset.LP},
                     keep_pending=not outputs_cancelled,
                 )
                 raise OperationError(
@@ -616,8 +617,15 @@ class PoolService:
         error: Exception,
         refunds: dict[Asset, str],
         *,
+        owed: set[Asset],
         keep_pending: bool = False,
     ) -> None:
+        """Record a failed operation and close its journal only when settled.
+
+        The journal is the operator's only record of custody that is neither
+        in the pool state nor back with the user, so it is completed only
+        when every asset the pool took has a refund token.
+        """
         if operation_id is None or self.journal is None:
             return
         self.journal.update(
@@ -626,7 +634,7 @@ class PoolService:
             error=str(error),
             refunds={asset.value: token for asset, token in refunds.items()},
         )
-        if refunds and not keep_pending:
+        if not keep_pending and owed <= refunds.keys():
             self.journal.complete(operation_id, result="failed_refunded")
 
     @staticmethod
