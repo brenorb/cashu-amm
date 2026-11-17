@@ -1,0 +1,46 @@
+---
+title: "Add SAT + USD liquidity"
+---
+stateDiagram-v2
+  state "Legend" as legend {
+    lg0: settled
+    lg1: stopped
+    lg2: working
+  }
+  class lg0 teal
+  class lg1 orange
+  class lg2 blue
+  s0: Choose SAT and USD tokens
+  s1: Sending tokens
+  s2: SAT received
+  s3: SAT token refused, nothing taken
+  s4: Both tokens received
+  s5: Returning your tokens
+  s6: LP token in your wallet
+  s7: SAT token returned
+  s8: Held for operator recovery
+  s9: Both tokens returned
+  s10: Part returned, rest held for recovery
+  [*] --> s0
+  s0 --> s1: you press add liquidity
+  s1 --> s2: the pool receives the SAT token
+  s1 --> s3: the mint refuses the SAT token
+  s2 --> s4: the pool receives the USD token
+  s2 --> s5: the mint refuses the USD token
+  s4 --> s5: the amounts do not match the pool price
+  s4 --> s6: the pool issues LP shares
+  s5 --> s7: every refund succeeds
+  s5 --> s8: a refund fails
+  s5 --> s9: every refund succeeds
+  s5 --> s10: a refund fails
+  class s0 blue
+  class s1 blue
+  class s2 blue
+  class s3 orange
+  class s4 blue
+  class s5 blue
+  class s6 teal
+  class s7 teal
+  class s8 orange
+  class s9 teal
+  class s10 orange

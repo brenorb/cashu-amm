@@ -1,0 +1,47 @@
+---
+title: "Trade SAT and USD"
+---
+stateDiagram-v2
+  state "Legend" as legend {
+    lg0: settled
+    lg1: stopped
+    lg2: working
+  }
+  class lg0 teal
+  class lg1 orange
+  class lg2 blue
+  s0: Choose a token to trade
+  s1: Trade in progress
+  s2: Held, answer on its way
+  s3: Refunded, answer on its way
+  s4: Swapped, answer on its way
+  s5: Token refused, nothing taken
+  s6: Connection lost, trade ID kept
+  s7: Held for operator recovery
+  s8: Refund token in your wallet
+  s9: Output token in your wallet
+  [*] --> s0
+  s0 --> s1: you press trade
+  s1 --> s2: the output and the refund both fail
+  s1 --> s3: the output fails and the pool refunds
+  s1 --> s4: the pool swaps at the curve price
+  s1 --> s5: the mint refuses the token
+  s2 --> s6: the response is lost
+  s2 --> s7: the page says the pool holds it
+  s3 --> s6: the response is lost
+  s3 --> s8: the page saves the refund token
+  s4 --> s6: the response is lost
+  s4 --> s9: the page saves the output token
+  s6 --> s2: you press trade again
+  s6 --> s3: you press trade again
+  s6 --> s4: you press trade again
+  class s0 blue
+  class s1 blue
+  class s2 blue
+  class s3 blue
+  class s4 blue
+  class s5 orange
+  class s6 blue
+  class s7 orange
+  class s8 teal
+  class s9 teal
